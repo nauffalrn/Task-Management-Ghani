@@ -2,8 +2,10 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import swaggerUi from "swagger-ui-express";
 import { errorHandler, notFound } from "./common/middlewares/error.js";
 import { handleUploadError } from "./common/middlewares/upload.js";
+import { specs, swaggerUiOptions } from "./config/swagger.js"; // ✅ Import swaggerUiOptions
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -23,7 +25,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Security middleware
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https:"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+      },
+    },
+  })
+);
+
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -38,11 +53,12 @@ app.use(morgan("combined"));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// Serve static files (for file downloads)
 app.use(
   "/uploads",
   express.static(path.join(__dirname, "..", "public", "uploads"))
 );
+
+app.use("/public", express.static(path.join(__dirname, "..", "public")));
 
 // Health check
 app.get("/health", (req, res) => {
@@ -53,6 +69,19 @@ app.get("/health", (req, res) => {
     uptime: process.uptime(),
   });
 });
+
+// ✅ Root endpoint dengan link ke dokumentasi
+app.get("/", (req, res) => {
+  res.json({
+    message: "🚀 Task Management API is running!",
+    documentation: "http://localhost:5000/api-docs",
+    health: "http://localhost:5000/health",
+    version: "1.0.0",
+  });
+});
+
+// ✅ Swagger Documentation - gunakan swaggerUiOptions dari config
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs, swaggerUiOptions));
 
 // API Routes
 app.use("/api/auth", authRoutes);
