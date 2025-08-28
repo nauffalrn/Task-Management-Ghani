@@ -329,40 +329,11 @@ const options = {
 
 const specs = swaggerJSDoc(options);
 
-// ✅ Swagger UI options - Fix logo path dan hapus server dropdown
 const swaggerUiOptions = {
-  customCss: `
-    .swagger-ui .info .title::before {
-      content: '';
-      background-image: url('/logo.png');
-      background-size: contain;
-      background-repeat: no-repeat;
-      background-position: center left;
-      display: inline-block;
-      width: 40px;
-      height: 40px;
-      margin-right: 15px;
-      vertical-align: middle;
-    }
-    .swagger-ui .info .title {
-      display: flex;
-      align-items: center;
-    }
-    .swagger-ui .topbar {
-      background-color: #1f2937;
-      border-bottom: 1px solid #374151;
-    }
-    .swagger-ui .scheme-container {
-      display: none !important;
-    }
-    .swagger-ui .servers {
-      display: none !important;
-    }
-  `,
-  customCssUrl: ["/swagger/global.css", "/swagger/light.css"],
-  customJs: "/swagger/swagger.js",
+  customCssUrl: ["/public/swagger/global.css"],
+  customJs: "/public/swagger/swagger.js",
   customSiteTitle: "Task Management API",
-  customfavIcon: "/logo.png",
+  customfavIcon: "/public/logo.png",
   swaggerOptions: {
     persistAuthorization: true,
     displayRequestDuration: true,
