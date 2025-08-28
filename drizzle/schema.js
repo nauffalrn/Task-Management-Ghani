@@ -63,8 +63,11 @@ export const tasks = pgTable("tasks", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   status: taskStatusEnum("status").default("todo"),
-  assignTo: integer("assign_to").references(() => users.id),
+  assignedTo: integer("assigned_to").references(() => users.id),
   dueDate: timestamp("due_date"),
+  createdBy: integer("created_by")
+    .references(() => users.id)
+    .notNull(), // Add this field
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -93,8 +96,10 @@ export const attachments = pgTable("attachments", {
     .references(() => users.id)
     .notNull(),
   fileName: varchar("filename", { length: 255 }).notNull(),
+  originalName: varchar("original_name", { length: 255 }).notNull(),
   fileType: varchar("filetype", { length: 100 }).notNull(),
-  cloudinaryUrl: varchar("cloudinary_url", { length: 500 }).notNull(),
+  fileSize: integer("file_size").notNull(),
+  filePath: varchar("file_path", { length: 500 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

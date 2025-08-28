@@ -1,112 +1,118 @@
 import { AttachmentsRepository } from "./attachments.repo.js";
-import { TasksRepository } from "../tasks/tasks.repo.js";
-import { WorkspacesRepository } from "../workspaces/workspaces.repo.js";
-import { GLOBAL_ACCESS_ROLES } from "../../common/constants/roles.js";
+import path from "path";
+import fs from "fs";
 
 export class AttachmentsService {
   constructor() {
     this.attachmentsRepo = new AttachmentsRepository();
-    this.tasksRepo = new TasksRepository();
-    this.workspacesRepo = new WorkspacesRepository();
   }
 
-  async getTaskAttachments(taskId, user) {
+  async uploadFile(file, taskId, userId) {
     try {
-      // Check if task exists
-      const task = await this.tasksRepo.findById(taskId);
-      if (!task) {
-        throw new Error("Task not found");
+      if (!file) {
+        throw new Error("No file provided");
       }
 
-      // Check if user has access to this task's workspace
-      if (!GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
-        const hasAccess = userWorkspaces.some(
-          (ws) => ws.id === task.workspaceId
-        );
-
-        if (!hasAccess) {
-          throw new Error("Access denied to this task");
-        }
-      }
-
-      const attachmentsList = await this.attachmentsRepo.findByTaskId(taskId);
-
-      return {
-        success: true,
-        message: "Attachments retrieved successfully",
-        data: { attachments: attachmentsList },
-      };
-    } catch (error) {
-      throw new Error(error.message);
-    }
-  }
-
-  async createAttachment(attachmentData, user) {
-    try {
-      const { taskId, fileName, fileType, cloudinaryUrl } = attachmentData;
-
-      // Validate required fields
-      if (!taskId || !fileName || !fileType || !cloudinaryUrl) {
-        throw new Error(
-          "Task ID, file name, file type, and cloudinary URL are required"
-        );
-      }
-
-      // Check if task exists
-      const task = await this.tasksRepo.findById(taskId);
-      if (!task) {
-        throw new Error("Task not found");
-      }
-
-      // Check if user has access to this task's workspace
-      if (!GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
-        const hasAccess = userWorkspaces.some(
-          (ws) => ws.id === task.workspaceId
-        );
-
-        if (!hasAccess) {
-          throw new Error("Access denied to this task");
-        }
-      }
-
-      const newAttachment = await this.attachmentsRepo.create({
+      // Create attachment record
+      const attachment = await this.attachmentsRepo.create({
         taskId,
-        userId: user.id,
-        fileName,
-        fileType,
-        cloudinaryUrl,
+        userId,
+        fileName: file.filename,
+        originalName: file.originalname,
+        fileType: file.mimetype,
+        fileSize: file.size,
+        filePath: file.path,
       });
 
       return {
         success: true,
-        message: "Attachment uploaded successfully",
-        data: { attachment: newAttachment },
+        message: "File uploaded successfully",
+        data: {
+          attachment: {
+            ...attachment,
+            downloadUrl: this.getDownloadUrl(file.path),
+            previewUrl: this.getPreviewUrl(attachment),
+          },
+        },
+      };
+    } catch (error) {
+      // Clean up file if database save fails
+      if (file && file.path && fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+      throw new Error(error.message);
+    }
+  }
+
+  // ADD: Missing getAttachmentById method
+  async getAttachmentById(attachmentId) {
+    try {
+      const attachment = await this.attachmentsRepo.findById(attachmentId);
+
+      if (!attachment) {
+        throw new Error("Attachment not found");
+      }
+
+      const attachmentWithUrls = {
+        ...attachment,
+        downloadUrl: this.getDownloadUrl(attachment.filePath),
+        previewUrl: this.getPreviewUrl(attachment),
+        isImage: attachment.fileType.startsWith("image/"),
+        formattedSize: this.formatFileSize(attachment.fileSize),
+      };
+
+      return {
+        success: true,
+        message: "Attachment retrieved successfully",
+        data: { attachment: attachmentWithUrls },
       };
     } catch (error) {
       throw new Error(error.message);
     }
   }
 
-  async deleteAttachment(id, user) {
+  async getTaskAttachments(taskId) {
     try {
-      const attachment = await this.attachmentsRepo.findById(id);
+      const attachments = await this.attachmentsRepo.findByTaskId(taskId);
+
+      const attachmentsWithUrls = attachments.map((attachment) => ({
+        ...attachment,
+        downloadUrl: this.getDownloadUrl(attachment.filePath),
+        previewUrl: this.getPreviewUrl(attachment),
+        isImage: attachment.fileType.startsWith("image/"),
+        formattedSize: this.formatFileSize(attachment.fileSize),
+      }));
+
+      return {
+        success: true,
+        message: "Attachments retrieved successfully",
+        data: { attachments: attachmentsWithUrls },
+      };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async deleteAttachment(attachmentId, userId) {
+    try {
+      const attachment = await this.attachmentsRepo.findById(attachmentId);
+
       if (!attachment) {
         throw new Error("Attachment not found");
       }
 
-      // Check if user owns the attachment or has global access
-      if (
-        attachment.userId !== user.id &&
-        !GLOBAL_ACCESS_ROLES.includes(user.role)
-      ) {
-        throw new Error(
-          "Access denied. You can only delete your own attachments"
-        );
+      // Check if user owns the attachment or has permission
+      if (attachment.userId !== userId) {
+        throw new Error("Access denied");
       }
 
-      await this.attachmentsRepo.delete(id);
+      // Delete file from filesystem
+      if (fs.existsSync(attachment.filePath)) {
+        fs.unlinkSync(attachment.filePath);
+      }
+
+      // Delete from database
+      await this.attachmentsRepo.delete(attachmentId);
 
       return {
         success: true,
@@ -117,38 +123,24 @@ export class AttachmentsService {
     }
   }
 
-  async getAttachmentById(id, user) {
-    try {
-      const attachment = await this.attachmentsRepo.findById(id);
-      if (!attachment) {
-        throw new Error("Attachment not found");
-      }
+  // Helper methods
+  getDownloadUrl(filePath) {
+    // Convert file path to URL path
+    return filePath.replace("public", "");
+  }
 
-      // Check if task exists and user has access
-      const task = await this.tasksRepo.findById(attachment.taskId);
-      if (!task) {
-        throw new Error("Task not found");
-      }
-
-      // Check if user has access to this task's workspace
-      if (!GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
-        const hasAccess = userWorkspaces.some(
-          (ws) => ws.id === task.workspaceId
-        );
-
-        if (!hasAccess) {
-          throw new Error("Access denied to this attachment");
-        }
-      }
-
-      return {
-        success: true,
-        message: "Attachment retrieved successfully",
-        data: { attachment },
-      };
-    } catch (error) {
-      throw new Error(error.message);
+  getPreviewUrl(attachment) {
+    if (attachment.fileType && attachment.fileType.startsWith("image/")) {
+      return this.getDownloadUrl(attachment.filePath);
     }
+    return null;
+  }
+
+  formatFileSize(bytes) {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 }

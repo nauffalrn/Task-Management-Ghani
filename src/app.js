@@ -3,6 +3,9 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import { errorHandler, notFound } from "./common/middlewares/error.js";
+import { handleUploadError } from "./common/middlewares/upload.js";
+import path from "path";
+import { fileURLToPath } from "url";
 
 // Import routes
 import authRoutes from "./modules/auth/auth.routes.js";
@@ -15,6 +18,9 @@ import attachmentsRoutes from "./modules/attachments/attachments.routes.js";
 import logsRoutes from "./modules/logs/logs.routes.js";
 
 const app = express();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Security middleware
 app.use(helmet());
@@ -31,6 +37,12 @@ app.use(morgan("combined"));
 // Body parsing
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Serve static files (for file downloads)
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "..", "public", "uploads"))
+);
 
 // Health check
 app.get("/health", (req, res) => {
@@ -51,6 +63,9 @@ app.use("/api/tasks", tasksRoutes);
 app.use("/api/comments", commentsRoutes);
 app.use("/api/attachments", attachmentsRoutes);
 app.use("/api/logs", logsRoutes);
+
+// Upload error handling
+app.use(handleUploadError);
 
 // Error handling
 app.use(notFound);

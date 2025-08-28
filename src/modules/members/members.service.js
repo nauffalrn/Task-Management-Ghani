@@ -3,8 +3,11 @@ import { WorkspacesRepository } from "../workspaces/workspaces.repo.js";
 import { UsersRepository } from "../users/users.repo.js";
 import {
   WORKSPACE_ROLES,
+  canManageWorkspaceMembers,
+  ROLES,
   GLOBAL_ACCESS_ROLES,
-  WORKSPACE_CREATOR_ROLES,
+  isDepartmentHead,
+  getDepartmentFromRole,
 } from "../../common/constants/roles.js";
 
 export class MembersService {
@@ -44,28 +47,65 @@ export class MembersService {
     }
   }
 
-  async addMember(workspaceId, memberData, user) {
+  async addMember(workspaceId, memberData, requestingUser) {
     try {
-      const { userId, role = WORKSPACE_ROLES.MEMBER } = memberData;
-
-      // Check if workspace exists
+      // Get workspace info
       const workspace = await this.workspacesRepo.findById(workspaceId);
       if (!workspace) {
         throw new Error("Workspace not found");
       }
 
-      // Check if user can add members
-      if (
-        !GLOBAL_ACCESS_ROLES.includes(user.role) &&
-        !WORKSPACE_CREATOR_ROLES.includes(user.role)
-      ) {
-        throw new Error("Access denied. You cannot add members");
+      // Check permissions
+      if (!canManageWorkspaceMembers(requestingUser.role, workspace.name)) {
+        throw new Error(
+          "Access denied. Only Manager and relevant Department Heads can manage members"
+        );
       }
 
-      // Check if target user exists
-      const targetUser = await this.usersRepo.findById(userId);
-      if (!targetUser) {
-        throw new Error("User not found");
+      // Owner override logging
+      if (requestingUser.role === ROLES.OWNER) {
+        console.log(
+          `⚠️ Owner override: Adding member to "${workspace.name}". Consider delegating to Manager/Department Head.`
+        );
+      }
+
+      const { userId, role } = memberData;
+
+      // Validate required fields
+      if (!userId || !role) {
+        throw new Error("User ID and role are required");
+      }
+
+      // Validate workspace role
+      if (!Object.values(WORKSPACE_ROLES).includes(role)) {
+        throw new Error(
+          `Invalid workspace role. Valid roles are: ${Object.values(
+            WORKSPACE_ROLES
+          ).join(", ")}`
+        );
+      }
+
+      // REVISI: Department heads can only add users from their department
+      if (isDepartmentHead(requestingUser.role)) {
+        const targetUser = await this.usersRepo.findById(userId);
+        if (!targetUser) {
+          throw new Error("Target user not found");
+        }
+
+        const requestingUserDepartment = getDepartmentFromRole(
+          requestingUser.role
+        );
+        const targetUserDepartment = getDepartmentFromRole(targetUser.role);
+
+        // Allow adding users from same department OR to general workspace
+        if (
+          targetUserDepartment !== requestingUserDepartment &&
+          workspace.name !== "Independence Day"
+        ) {
+          throw new Error(
+            `Access denied. You can only add users from ${requestingUserDepartment} department to this workspace`
+          );
+        }
       }
 
       // Check if user is already a member
@@ -77,11 +117,6 @@ export class MembersService {
         throw new Error("User is already a member of this workspace");
       }
 
-      // Validate workspace role
-      if (!Object.values(WORKSPACE_ROLES).includes(role)) {
-        throw new Error("Invalid workspace role");
-      }
-
       const newMember = await this.membersRepo.addMember({
         workspaceId,
         userId,
@@ -91,7 +126,10 @@ export class MembersService {
       return {
         success: true,
         message: "Member added successfully",
-        data: { member: newMember },
+        data: {
+          member: newMember,
+          managedBy: requestingUser.role,
+        },
       };
     } catch (error) {
       throw new Error(error.message);
@@ -107,11 +145,30 @@ export class MembersService {
       }
 
       // Check permissions
-      if (
-        !GLOBAL_ACCESS_ROLES.includes(user.role) &&
-        !WORKSPACE_CREATOR_ROLES.includes(user.role)
-      ) {
-        throw new Error("Access denied. You cannot update members");
+      if (!canManageWorkspaceMembers(user.role, workspace.name)) {
+        throw new Error(
+          "Access denied. Only Manager and relevant Department Heads can manage members"
+        );
+      }
+
+      // REVISI: Department heads can only manage users from their department
+      if (isDepartmentHead(user.role)) {
+        const targetUser = await this.usersRepo.findById(userId);
+        if (!targetUser) {
+          throw new Error("Target user not found");
+        }
+
+        const requestingUserDepartment = getDepartmentFromRole(user.role);
+        const targetUserDepartment = getDepartmentFromRole(targetUser.role);
+
+        if (
+          targetUserDepartment !== requestingUserDepartment &&
+          workspace.name !== "Independence Day"
+        ) {
+          throw new Error(
+            `Access denied. You can only manage users from ${requestingUserDepartment} department`
+          );
+        }
       }
 
       // Find existing member
@@ -155,11 +212,30 @@ export class MembersService {
       }
 
       // Check permissions
-      if (
-        !GLOBAL_ACCESS_ROLES.includes(user.role) &&
-        !WORKSPACE_CREATOR_ROLES.includes(user.role)
-      ) {
-        throw new Error("Access denied. You cannot remove members");
+      if (!canManageWorkspaceMembers(user.role, workspace.name)) {
+        throw new Error(
+          "Access denied. Only Manager and relevant Department Heads can manage members"
+        );
+      }
+
+      // REVISI: Department heads can only remove users from their department
+      if (isDepartmentHead(user.role)) {
+        const targetUser = await this.usersRepo.findById(userId);
+        if (!targetUser) {
+          throw new Error("Target user not found");
+        }
+
+        const requestingUserDepartment = getDepartmentFromRole(user.role);
+        const targetUserDepartment = getDepartmentFromRole(targetUser.role);
+
+        if (
+          targetUserDepartment !== requestingUserDepartment &&
+          workspace.name !== "Independence Day"
+        ) {
+          throw new Error(
+            `Access denied. You can only remove users from ${requestingUserDepartment} department`
+          );
+        }
       }
 
       // Find existing member
