@@ -104,8 +104,8 @@ body {
   background-repeat: no-repeat;
   background-position: center;
   display: inline-block;
-  width: 36px;
-  height: 36px;
+  width: 64px;
+  height: 64px;
   flex-shrink: 0;
 }
 
@@ -246,6 +246,50 @@ body {
 
 .swagger-ui .opblock-tag {
   color: var(--primary-text-color);
+}
+
+/* Tag styling - different colors for each section */
+.swagger-ui .opblock-tag {
+  border-bottom: 1px solid var(--block-border-color);
+  color: var(--primary-text-color);
+}
+
+/* Specific tag colors */
+.swagger-ui .opblock-tag[data-tag="User authentication and authorization endpoints"] {
+  background-color: var(--get-method-color);
+  color: var(--button-text-color);
+  opacity: 0.8;
+}
+
+.swagger-ui .opblock-tag[data-tag="Task file attachment management endpoints"] {
+  background-color: var(--post-method-color);
+  color: var(--button-text-color);
+  opacity: 0.8;
+}
+
+.swagger-ui .opblock-tag[data-tag="Task comment management endpoints"] {
+  background-color: var(--put-method-color);
+  color: var(--button-text-color);
+  opacity: 0.8;
+}
+
+.swagger-ui .opblock-tag[data-tag="Activity log and audit trail endpoints"] {
+  background-color: var(--delete-method-color);
+  color: var(--button-text-color);
+  opacity: 0.8;
+}
+
+/* Tag section headers */
+.swagger-ui .opblock-tag small {
+  padding: 4px 8px;
+  border-radius: var(--innner-block-border-radius);
+  font-weight: 500;
+}
+
+/* Fix anchor links to go directly to sections */
+.swagger-ui .opblock-tag a.nostyle {
+  text-decoration: none !important;
+  color: inherit !important;
 }
 
 .swagger-ui .opblock .opblock-summary-operation-id,
@@ -530,6 +574,44 @@ body {
   color: var(--primary-text-color);
 }
 
+/* Specific tag colors */
+.swagger-ui .opblock-tag[data-tag="User authentication and authorization endpoints"] {
+  background-color: var(--get-method-color);
+  color: var(--button-text-color);
+  opacity: 0.8;
+}
+
+.swagger-ui .opblock-tag[data-tag="Task file attachment management endpoints"] {
+  background-color: var(--post-method-color);
+  color: var(--button-text-color);
+  opacity: 0.8;
+}
+
+.swagger-ui .opblock-tag[data-tag="Task comment management endpoints"] {
+  background-color: var(--put-method-color);
+  color: var(--button-text-color);
+  opacity: 0.8;
+}
+
+.swagger-ui .opblock-tag[data-tag="Activity log and audit trail endpoints"] {
+  background-color: var(--delete-method-color);
+  color: var(--button-text-color);
+  opacity: 0.8;
+}
+
+/* Tag section headers */
+.swagger-ui .opblock-tag small {
+  padding: 4px 8px;
+  border-radius: var(--innner-block-border-radius);
+  font-weight: 500;
+}
+
+/* Fix anchor links to go directly to sections */
+.swagger-ui .opblock-tag a.nostyle {
+  text-decoration: none !important;
+  color: inherit !important;
+}
+
 .swagger-ui section.models.is-open h4 {
   border-bottom: 1px solid var(--block-border-color);
 }
@@ -540,4 +622,46 @@ body {
 
 .swagger-ui section.models {
   border-radius: var(--block-border-radius);
+}
+
+/* Hide authorize section completely */
+.swagger-ui .scheme-container,
+.swagger-ui .auth-wrapper,
+.swagger-ui .btn.authorize,
+.swagger-ui section.schemes {
+  display: none !important;
+}
+
+/* Ensure consistent background for all swagger containers */
+.swagger-ui .wrapper,
+.swagger-ui .swagger-ui,
+.swagger-ui .information-container,
+.swagger-ui .info,
+.swagger-ui .servers,
+.swagger-ui .operations-tag,
+.swagger-ui .operation-tag-content {
+  background-color: var(--all-bg-color) !important;
+}
+
+/* Remove any inconsistent backgrounds */
+.swagger-ui .wrapper .block.col-12 {
+  background-color: var(--all-bg-color) !important;
+}
+
+.swagger-ui .information-container .info {
+  background-color: var(--all-bg-color) !important;
+}
+
+/* Ensure operation blocks have consistent background */
+.swagger-ui .operation-tag-content {
+  background-color: var(--all-bg-color) !important;
+}
+
+.swagger-ui .operations-tag {
+  background-color: var(--all-bg-color) !important;
+}
+
+/* Remove any default swagger backgrounds */
+.swagger-ui .swagger-container .swagger-ui-wrap {
+  background-color: var(--all-bg-color) !important;
 }
