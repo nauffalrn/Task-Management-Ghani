@@ -9,14 +9,14 @@ import { specs, swaggerUiOptions } from "./config/swagger.js"; // ✅ Import swa
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Import routes
+// Import routes - urutan ini menentukan urutan di Swagger
 import authRoutes from "./modules/auth/auth.routes.js";
 import usersRoutes from "./modules/users/users.routes.js";
 import workspacesRoutes from "./modules/workspaces/workspaces.routes.js";
 import membersRoutes from "./modules/members/members.routes.js";
 import tasksRoutes from "./modules/tasks/tasks.routes.js";
-import commentsRoutes from "./modules/comments/comments.routes.js";
 import attachmentsRoutes from "./modules/attachments/attachments.routes.js";
+import commentsRoutes from "./modules/comments/comments.routes.js";
 import logsRoutes from "./modules/logs/logs.routes.js";
 
 const app = express();
@@ -83,14 +83,14 @@ app.get("/", (req, res) => {
 // ✅ Swagger Documentation - gunakan swaggerUiOptions dari config
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs, swaggerUiOptions));
 
-// API Routes
+// API Routes - urutan ini juga harus sama dengan urutan yang diinginkan
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/workspaces", workspacesRoutes);
 app.use("/api/members", membersRoutes);
 app.use("/api/tasks", tasksRoutes);
-app.use("/api/comments", commentsRoutes);
 app.use("/api/attachments", attachmentsRoutes);
+app.use("/api/comments", commentsRoutes);
 app.use("/api/logs", logsRoutes);
 
 // Upload error handling

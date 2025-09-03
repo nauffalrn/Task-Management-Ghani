@@ -344,7 +344,7 @@ const swaggerUiOptions = {
     defaultModelsExpandDepth: -1,
     defaultModelExpandDepth: -1,
     url: undefined,
-    urls: undefined,
+    urls: undefined
   },
 };
 
