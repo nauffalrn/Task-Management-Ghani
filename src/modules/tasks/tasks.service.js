@@ -1,235 +1,95 @@
+import { BaseService } from "../../common/service/base.service.js";
 import { TasksRepository } from "./tasks.repo.js";
-import { WorkspacesRepository } from "../workspaces/workspaces.repo.js";
-import { UsersRepository } from "../users/users.repo.js";
-import {
-  GLOBAL_ACCESS_ROLES,
-  WORKSPACE_CREATOR_ROLES,
-} from "../../common/constants/roles.js";
+import { TASK_STATUS, HTTP_STATUS } from "../../common/constants/app.js";
 
-export class TasksService {
+export class TasksService extends BaseService {
   constructor() {
-    this.tasksRepo = new TasksRepository();
-    this.workspacesRepo = new WorkspacesRepository();
-    this.usersRepo = new UsersRepository();
+    const tasksRepo = new TasksRepository();
+    super(tasksRepo, "Task");
   }
 
-  async getAllTasks(user, filters = {}) {
-    try {
-      let tasksList;
+  async getTasks(options = {}) {
+    return await this.repository.findAll(options);
+  }
 
-      // If user has global access, get all tasks or filter by workspace
-      if (GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        tasksList = await this.tasksRepo.findAll(filters);
-      } else {
-        // Get tasks from user's workspaces only
-        const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
-        const workspaceIds = userWorkspaces.map((ws) => ws.id);
-
-        if (workspaceIds.length === 0) {
-          tasksList = [];
-        } else {
-          // If workspace filter is provided, check if user has access
-          if (
-            filters.workspaceId &&
-            !workspaceIds.includes(filters.workspaceId)
-          ) {
-            throw new Error("Access denied to this workspace");
-          }
-
-          tasksList = await this.tasksRepo.findAll(filters);
-          // Filter tasks by user's accessible workspaces
-          tasksList = tasksList.filter((task) =>
-            workspaceIds.includes(task.workspaceId)
-          );
-        }
-      }
-
-      return {
-        success: true,
-        message: "Tasks retrieved successfully",
-        data: { tasks: tasksList },
-      };
-    } catch (error) {
-      throw new Error(error.message);
+  async getTasksByWorkspace(workspaceId, options = {}) {
+    if (!workspaceId) {
+      throw new Error("Workspace ID is required");
     }
+    return await this.repository.findByWorkspaceId(workspaceId, options);
   }
 
-  async getTaskById(id, user) {
-    try {
-      const task = await this.tasksRepo.findById(id);
-
-      if (!task) {
-        throw new Error("Task not found");
-      }
-
-      // Check if user has access to this task's workspace
-      if (!GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
-        const hasAccess = userWorkspaces.some(
-          (ws) => ws.id === task.workspaceId
-        );
-
-        if (!hasAccess) {
-          throw new Error("Access denied to this task");
-        }
-      }
-
-      return {
-        success: true,
-        message: "Task retrieved successfully",
-        data: { task },
-      };
-    } catch (error) {
-      throw new Error(error.message);
+  async getTasksByAssignee(userId, options = {}) {
+    if (!userId) {
+      throw new Error("User ID is required");
     }
+    return await this.repository.findByAssignedUser(userId, options);
   }
 
-  async getMyTasks(user) {
-    try {
-      const myTasks = await this.tasksRepo.findByAssignee(user.id);
-
-      return {
-        success: true,
-        message: "My tasks retrieved successfully",
-        data: { tasks: myTasks },
-      };
-    } catch (error) {
-      throw new Error(error.message);
+  async getTaskWithDetails(taskId) {
+    if (!taskId) {
+      throw new Error("Task ID is required");
     }
+    return await this.repository.findWithDetails(taskId);
   }
 
-  async createTask(taskData, user) {
+  // Override create to add validation
+  async create(taskData) {
     try {
-      const { workspaceId, title, description, assignTo, dueDate } = taskData;
-
       // Validate required fields
-      if (!workspaceId || !title) {
-        throw new Error("Workspace ID and title are required");
+      if (!taskData.title || !taskData.workspaceId || !taskData.createdBy) {
+        const error = new Error(
+          "Title, workspace ID, and creator ID are required"
+        );
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
       }
 
-      // Check if workspace exists
-      const workspace = await this.workspacesRepo.findById(workspaceId);
-      if (!workspace) {
-        throw new Error("Workspace not found");
+      // Set default status if not provided
+      if (!taskData.status) {
+        taskData.status = TASK_STATUS.TODO;
       }
 
-      // Check if user has access to create tasks in this workspace
-      if (!GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
-        const hasAccess = userWorkspaces.some((ws) => ws.id === workspaceId);
+      return await this.repository.create(taskData);
+    } catch (error) {
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to create task: ${error.message}`);
+    }
+  }
 
-        if (!hasAccess) {
-          throw new Error("Access denied to this workspace");
-        }
+  async updateStatus(taskId, newStatus, userId) {
+    try {
+      if (!taskId || !newStatus || !userId) {
+        const error = new Error("Task ID, status, and user ID are required");
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
       }
 
-      // If assigning to someone, check if assignee exists
-      if (assignTo) {
-        const assignee = await this.usersRepo.findById(assignTo);
-        if (!assignee) {
-          throw new Error("Assignee not found");
-        }
+      // Validate status
+      const validStatuses = Object.values(TASK_STATUS);
+      if (!validStatuses.includes(newStatus)) {
+        const error = new Error(
+          `Invalid status. Valid statuses: ${validStatuses.join(", ")}`
+        );
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
       }
 
-      const newTask = await this.tasksRepo.create({
-        workspaceId,
-        title,
-        description: description || null,
-        assignTo: assignTo || null,
-        dueDate: dueDate ? new Date(dueDate) : null,
-        status: "todo",
+      return await this.repository.update(taskId, {
+        status: newStatus,
+        updatedBy: userId,
       });
-
-      return {
-        success: true,
-        message: "Task created successfully",
-        data: { task: newTask },
-      };
     } catch (error) {
-      throw new Error(error.message);
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to update task status: ${error.message}`);
     }
   }
 
-  async updateTask(id, taskData, user) {
+  async getTaskStats(workspaceId = null) {
     try {
-      const task = await this.tasksRepo.findById(id);
-      if (!task) {
-        throw new Error("Task not found");
-      }
-
-      // Check if user has access to update this task
-      if (!GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
-        const hasAccess = userWorkspaces.some(
-          (ws) => ws.id === task.workspaceId
-        );
-
-        if (!hasAccess) {
-          throw new Error("Access denied to this task");
-        }
-      }
-
-      // If assigning to someone, check if assignee exists
-      if (taskData.assignTo !== undefined && taskData.assignTo !== null) {
-        const assignee = await this.usersRepo.findById(taskData.assignTo);
-        if (!assignee) {
-          throw new Error("Assignee not found");
-        }
-      }
-
-      // Prepare update data
-      const updateData = { ...taskData };
-      if (updateData.dueDate) {
-        updateData.dueDate = new Date(updateData.dueDate);
-      }
-
-      const updatedTask = await this.tasksRepo.update(id, updateData);
-
-      return {
-        success: true,
-        message: "Task updated successfully",
-        data: { task: updatedTask },
-      };
+      return await this.repository.countByStatus(workspaceId);
     } catch (error) {
-      throw new Error(error.message);
-    }
-  }
-
-  async deleteTask(id, user) {
-    try {
-      const task = await this.tasksRepo.findById(id);
-      if (!task) {
-        throw new Error("Task not found");
-      }
-
-      // Check if user has access to delete this task
-      if (
-        !GLOBAL_ACCESS_ROLES.includes(user.role) &&
-        !WORKSPACE_CREATOR_ROLES.includes(user.role)
-      ) {
-        throw new Error("Access denied. You cannot delete tasks");
-      }
-
-      // Check workspace access
-      if (!GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
-        const hasAccess = userWorkspaces.some(
-          (ws) => ws.id === task.workspaceId
-        );
-
-        if (!hasAccess) {
-          throw new Error("Access denied to this task");
-        }
-      }
-
-      await this.tasksRepo.delete(id);
-
-      return {
-        success: true,
-        message: "Task deleted successfully",
-      };
-    } catch (error) {
-      throw new Error(error.message);
+      throw new Error(`Failed to get task statistics: ${error.message}`);
     }
   }
 }

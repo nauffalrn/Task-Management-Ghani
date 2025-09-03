@@ -1,33 +1,78 @@
+import { BaseController } from "../../common/controller/base.controller.js";
 import { UsersService } from "./users.service.js";
-import { asyncHandler } from "../../common/middlewares/error.js";
+import { ResponseHelper } from "../../common/utils/response.helper.js";
 
-const usersService = new UsersService();
+export class UsersController extends BaseController {
+  constructor() {
+    const usersService = new UsersService();
+    super(usersService, "User");
+  }
 
-export const getUsers = asyncHandler(async (req, res) => {
-  const { search } = req.query;
-  const result = await usersService.getAllUsers(search);
-  res.status(200).json(result);
-});
+  async search(req, res, next) {
+    try {
+      const { q: query, page, limit } = req.query;
 
-export const getUserById = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const result = await usersService.getUserById(parseInt(id));
-  res.status(200).json(result);
-});
+      if (!query) {
+        return ResponseHelper.badRequest(res, "Search query is required");
+      }
 
-export const createUser = asyncHandler(async (req, res) => {
-  const result = await usersService.createUser(req.body);
-  res.status(201).json(result);
-});
+      const options = {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+      };
 
-export const updateUser = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const result = await usersService.updateUser(parseInt(id), req.body);
-  res.status(200).json(result);
-});
+      const users = await this.service.search(query, options);
 
-export const deleteUser = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const result = await usersService.deleteUser(parseInt(id));
-  res.status(200).json(result);
-});
+      return ResponseHelper.success(
+        res,
+        users,
+        "Users search completed successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Override create to handle password hashing
+  async create(req, res, next) {
+    try {
+      const userData = req.body;
+      const user = await this.service.create(userData);
+
+      return ResponseHelper.created(res, user, "User created successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Override update to handle password hashing
+  async update(req, res, next) {
+    try {
+      const { id } = req.params;
+      const userData = req.body;
+
+      const user = await this.service.update(parseInt(id), userData);
+
+      return ResponseHelper.success(res, user, "User updated successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+// Export individual functions for routes
+const controller = new UsersController();
+
+export const getUsers = (req, res, next) => controller.getAll(req, res, next);
+
+export const getUserById = (req, res, next) =>
+  controller.getById(req, res, next);
+
+export const createUser = (req, res, next) => controller.create(req, res, next);
+
+export const updateUser = (req, res, next) => controller.update(req, res, next);
+
+export const deleteUser = (req, res, next) => controller.delete(req, res, next);
+
+export const searchUsers = (req, res, next) =>
+  controller.search(req, res, next);

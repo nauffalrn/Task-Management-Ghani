@@ -1,107 +1,101 @@
-import { db } from "../../config/db.js";
+import { BaseRepository } from "../../common/repository/base.repository.js";
 import {
   workspaces,
   workspacesMembers,
   users,
 } from "../../../drizzle/schema.js";
-import { eq, like, or, and } from "drizzle-orm";
+import { eq, like, or } from "drizzle-orm";
 
-export class WorkspacesRepository {
-  async findAll(search = "") {
-    let query = db
-      .select({
-        id: workspaces.id,
-        name: workspaces.name,
-        description: workspaces.description,
-        createdAt: workspaces.createdAt,
-        updatedAt: workspaces.updatedAt,
-      })
-      .from(workspaces);
-
-    if (search) {
-      query = query.where(
-        or(
-          like(workspaces.name, `%${search}%`),
-          like(workspaces.description, `%${search}%`)
-        )
-      );
-    }
-
-    return await query;
+export class WorkspacesRepository extends BaseRepository {
+  constructor() {
+    super(workspaces, "workspace");
   }
 
-  async findById(id) {
-    const result = await db
-      .select()
-      .from(workspaces)
-      .where(eq(workspaces.id, id));
-    return result[0] || null;
+  async findAll(search = "") {
+    try {
+      let query = this.db
+        .select({
+          id: workspaces.id,
+          name: workspaces.name,
+          description: workspaces.description,
+          createdAt: workspaces.createdAt,
+          updatedAt: workspaces.updatedAt,
+        })
+        .from(workspaces);
+
+      if (search) {
+        query = query.where(
+          or(
+            like(workspaces.name, `%${search}%`),
+            like(workspaces.description, `%${search}%`)
+          )
+        );
+      }
+
+      return await query;
+    } catch (error) {
+      throw new Error(`Failed to find all workspaces: ${error.message}`);
+    }
   }
 
   async findByUserId(userId) {
-    const result = await db
-      .select({
-        id: workspaces.id,
-        name: workspaces.name,
-        description: workspaces.description,
-        createdAt: workspaces.createdAt,
-        updatedAt: workspaces.updatedAt,
-        userRole: workspacesMembers.role,
-      })
-      .from(workspaces)
-      .innerJoin(
-        workspacesMembers,
-        eq(workspaces.id, workspacesMembers.workspaceId)
-      )
-      .where(eq(workspacesMembers.userId, userId));
+    try {
+      const result = await this.db
+        .select({
+          id: workspaces.id,
+          name: workspaces.name,
+          description: workspaces.description,
+          createdAt: workspaces.createdAt,
+          updatedAt: workspaces.updatedAt,
+          userRole: workspacesMembers.role,
+        })
+        .from(workspaces)
+        .innerJoin(
+          workspacesMembers,
+          eq(workspaces.id, workspacesMembers.workspaceId)
+        )
+        .where(eq(workspacesMembers.userId, userId));
 
-    return result;
-  }
-
-  async create(workspaceData) {
-    const result = await db
-      .insert(workspaces)
-      .values(workspaceData)
-      .returning();
-    return result[0];
-  }
-
-  async update(id, workspaceData) {
-    const updateData = {
-      ...workspaceData,
-      updatedAt: new Date(),
-    };
-
-    const result = await db
-      .update(workspaces)
-      .set(updateData)
-      .where(eq(workspaces.id, id))
-      .returning();
-    return result[0] || null;
-  }
-
-  async delete(id) {
-    const result = await db
-      .delete(workspaces)
-      .where(eq(workspaces.id, id))
-      .returning();
-    return result[0] || null;
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to find workspaces by user ID: ${error.message}`);
+    }
   }
 
   async getWorkspaceMembers(workspaceId) {
-    const result = await db
-      .select({
-        id: workspacesMembers.id,
-        userId: workspacesMembers.userId,
-        userName: users.name,
-        userRole: users.role,
-        workspaceRole: workspacesMembers.role,
-        createdAt: workspacesMembers.createdAt,
-      })
-      .from(workspacesMembers)
-      .innerJoin(users, eq(workspacesMembers.userId, users.id))
-      .where(eq(workspacesMembers.workspaceId, workspaceId));
+    try {
+      const result = await this.db
+        .select({
+          id: workspacesMembers.id,
+          userId: workspacesMembers.userId,
+          userName: users.name,
+          userRole: users.role,
+          workspaceRole: workspacesMembers.role,
+          createdAt: workspacesMembers.createdAt,
+        })
+        .from(workspacesMembers)
+        .innerJoin(users, eq(workspacesMembers.userId, users.id))
+        .where(eq(workspacesMembers.workspaceId, workspaceId));
 
-    return result;
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to get workspace members: ${error.message}`);
+    }
+  }
+
+  async getWorkspaceStats(workspaceId) {
+    try {
+      // This would require joining with tasks table
+      // Implementation depends on your specific requirements
+      const members = await this.getWorkspaceMembers(workspaceId);
+
+      return {
+        totalMembers: members.length,
+        adminCount: members.filter((m) => m.workspaceRole === "admin").length,
+        memberCount: members.filter((m) => m.workspaceRole === "member").length,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get workspace stats: ${error.message}`);
+    }
   }
 }

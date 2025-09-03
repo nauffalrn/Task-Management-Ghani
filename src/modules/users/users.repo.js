@@ -1,46 +1,99 @@
+import { BaseRepository } from "../../common/repository/base.repository.js";
 import { db } from "../../config/db.js";
 import { users } from "../../../drizzle/schema.js";
-import { eq, like, or } from "drizzle-orm";
+import { eq, ilike, count } from "drizzle-orm";
+import { PAGINATION } from "../../common/constants/app.js";
 
-export class UsersRepository {
-  async findAll(search = "") {
-    let query = db.select().from(users);
+export class UsersRepository extends BaseRepository {
+  constructor() {
+    super(users, "user");
+  }
 
-    if (search) {
-      query = query.where(
-        or(like(users.name, `%${search}%`), like(users.role, `%${search}%`))
+  async findByEmail(email) {
+    return this.findOneByCondition(eq(users.email, email));
+  }
+
+  async findAll(options = {}) {
+    return super.findAll({
+      ...options,
+      searchField: "name",
+    });
+  }
+
+  // Custom method for users with specific fields
+  async findAllForListing(options = {}) {
+    try {
+      // Select only safe fields (exclude password)
+      const query = this.db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        })
+        .from(users);
+
+      // Apply search if provided
+      if (options.search) {
+        const searchCondition = ilike(users.name, `%${options.search}%`);
+        query = query.where(searchCondition);
+      }
+
+      const result = await query
+        .limit(options.limit || PAGINATION.DEFAULT_LIMIT)
+        .offset(options.offset || PAGINATION.DEFAULT_OFFSET);
+
+      // Get total count
+      const countResult = await this.countByCondition(
+        options.search ? ilike(users.name, `%${options.search}%`) : undefined
       );
+
+      return {
+        data: result,
+        total: countResult,
+      };
+    } catch (error) {
+      throw new Error(`Failed to fetch users for listing: ${error.message}`);
     }
-
-    return await query;
   }
 
-  async findById(id) {
-    const result = await db.select().from(users).where(eq(users.id, id));
-    return result[0] || null;
-  }
-
-  async findByName(name) {
-    const result = await db.select().from(users).where(eq(users.name, name));
-    return result[0] || null;
-  }
-
+  // Override create to handle password hashing
   async create(userData) {
-    const result = await db.insert(users).values(userData).returning();
-    return result[0];
+    try {
+      const result = await this.db.insert(users).values(userData).returning({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      });
+      return result[0];
+    } catch (error) {
+      throw new Error(`Failed to create user: ${error.message}`);
+    }
   }
 
+  // Override update to exclude password from return
   async update(id, userData) {
-    const result = await db
-      .update(users)
-      .set(userData)
-      .where(eq(users.id, id))
-      .returning();
-    return result[0] || null;
-  }
-
-  async delete(id) {
-    const result = await db.delete(users).where(eq(users.id, id)).returning();
-    return result[0] || null;
+    try {
+      const result = await this.db
+        .update(users)
+        .set({ ...userData, updatedAt: new Date() })
+        .where(eq(users.id, id))
+        .returning({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        });
+      return result[0] || null;
+    } catch (error) {
+      throw new Error(`Failed to update user: ${error.message}`);
+    }
   }
 }

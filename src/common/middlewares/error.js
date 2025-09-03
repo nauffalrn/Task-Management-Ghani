@@ -1,59 +1,70 @@
+import { ResponseHelper } from "../utils/response.helper.js";
+import { HTTP_STATUS } from "../constants/app.js";
+
 export const errorHandler = (err, req, res, next) => {
   console.error("Error:", err);
 
-  // Default error
-  let error = {
-    success: false,
-    message: err.message || "Internal Server Error",
-    error_code: "INTERNAL_ERROR",
-    timestamp: new Date().toISOString(),
-  };
-
-  // Validation errors
-  if (err.name === "ValidationError") {
-    error.message = "Validation Error";
-    error.error_code = "VALIDATION_ERROR";
-    error.details = err.details;
-    return res.status(400).json(error);
+  // Handle custom errors with statusCode
+  if (err.statusCode) {
+    return ResponseHelper.error(res, err.message, err.statusCode);
   }
 
-  // Database errors
+  // Handle validation errors
+  if (err.name === "ValidationError") {
+    return ResponseHelper.badRequest(
+      res,
+      "Validation error",
+      err.details || err.message
+    );
+  }
+
+  // Handle JWT errors
+  if (err.name === "JsonWebTokenError") {
+    return ResponseHelper.unauthorized(res, "Invalid token");
+  }
+
+  if (err.name === "TokenExpiredError") {
+    return ResponseHelper.unauthorized(res, "Token expired");
+  }
+
+  // Handle database errors
   if (err.code === "23505") {
-    // Unique constraint violation
-    error.message = "Resource already exists";
-    error.error_code = "DUPLICATE_RESOURCE";
-    return res.status(409).json(error);
+    // PostgreSQL unique violation
+    return ResponseHelper.conflict(res, "Resource already exists");
   }
 
   if (err.code === "23503") {
-    // Foreign key violation
-    error.message = "Referenced resource not found";
-    error.error_code = "FOREIGN_KEY_ERROR";
-    return res.status(400).json(error);
+    // PostgreSQL foreign key violation
+    return ResponseHelper.badRequest(
+      res,
+      "Invalid reference to related resource"
+    );
   }
 
-  // JWT errors
-  if (err.name === "JsonWebTokenError") {
-    error.message = "Invalid token";
-    error.error_code = "INVALID_TOKEN";
-    return res.status(401).json(error);
+  if (err.code === "23502") {
+    // PostgreSQL not null violation
+    return ResponseHelper.badRequest(res, "Required field is missing");
   }
 
-  // Not found errors
-  if (err.status === 404) {
-    error.message = "Resource not found";
-    error.error_code = "NOT_FOUND";
-    return res.status(404).json(error);
+  // Handle Multer errors
+  if (err.name === "MulterError") {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return ResponseHelper.badRequest(res, "File too large");
+    }
+    return ResponseHelper.badRequest(res, err.message);
   }
 
-  // Send error response
-  res.status(err.status || 500).json(error);
+  // Default server error
+  const message =
+    process.env.NODE_ENV === "production"
+      ? "Internal server error"
+      : err.message;
+
+  return ResponseHelper.error(res, message, HTTP_STATUS.INTERNAL_SERVER_ERROR);
 };
 
-export const notFound = (req, res, next) => {
-  const error = new Error(`Endpoint ${req.originalUrl} not found`);
-  error.status = 404;
-  next(error);
+export const notFoundHandler = (req, res) => {
+  ResponseHelper.notFound(res, "Route not found");
 };
 
 export const asyncHandler = (fn) => (req, res, next) => {

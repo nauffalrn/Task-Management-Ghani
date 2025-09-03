@@ -1,45 +1,39 @@
-import { db } from "../../config/db.js";
+import { BaseRepository } from "../../common/repository/base.repository.js";
 import { attachments } from "../../../drizzle/schema.js";
 import { eq } from "drizzle-orm";
 
-export class AttachmentsRepository {
-  async create(attachmentData) {
-    const [attachment] = await db
-      .insert(attachments)
-      .values(attachmentData)
-      .returning();
-    return attachment;
-  }
-
-  async findById(id) {
-    const [attachment] = await db
-      .select()
-      .from(attachments)
-      .where(eq(attachments.id, id));
-    return attachment;
+export class AttachmentsRepository extends BaseRepository {
+  constructor() {
+    super(attachments, "attachment");
   }
 
   async findByTaskId(taskId) {
-    return await db
-      .select()
-      .from(attachments)
-      .where(eq(attachments.taskId, taskId))
-      .orderBy(attachments.createdAt);
+    try {
+      const result = await this.db
+        .select()
+        .from(attachments)
+        .where(eq(attachments.taskId, taskId))
+        .orderBy(attachments.createdAt);
+      return result;
+    } catch (error) {
+      throw new Error(
+        `Failed to find attachments by task ID: ${error.message}`
+      );
+    }
   }
 
-  async delete(id) {
-    await db.delete(attachments).where(eq(attachments.id, id));
-  }
-
-  async update(id, updateData) {
-    const [updatedAttachment] = await db
-      .update(attachments)
-      .set({
-        ...updateData,
-        updatedAt: new Date(),
-      })
-      .where(eq(attachments.id, id))
-      .returning();
-    return updatedAttachment;
+  async findByUserId(userId) {
+    try {
+      const result = await this.db
+        .select()
+        .from(attachments)
+        .where(eq(attachments.userId, userId))
+        .orderBy(attachments.createdAt);
+      return result;
+    } catch (error) {
+      throw new Error(
+        `Failed to find attachments by user ID: ${error.message}`
+      );
+    }
   }
 }

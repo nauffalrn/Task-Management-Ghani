@@ -1,3 +1,4 @@
+import { BaseService } from "../../common/service/base.service.js";
 import { MembersRepository } from "./members.repo.js";
 import { WorkspacesRepository } from "../workspaces/workspaces.repo.js";
 import { UsersRepository } from "../users/users.repo.js";
@@ -9,10 +10,12 @@ import {
   isDepartmentHead,
   getDepartmentFromRole,
 } from "../../common/constants/roles.js";
+import { HTTP_STATUS } from "../../common/constants/app.js";
 
-export class MembersService {
+export class MembersService extends BaseService {
   constructor() {
-    this.membersRepo = new MembersRepository();
+    const membersRepo = new MembersRepository();
+    super(membersRepo, "Member");
     this.workspacesRepo = new WorkspacesRepository();
     this.usersRepo = new UsersRepository();
   }
@@ -22,7 +25,9 @@ export class MembersService {
       // Check if workspace exists and user has access
       const workspace = await this.workspacesRepo.findById(workspaceId);
       if (!workspace) {
-        throw new Error("Workspace not found");
+        const error = new Error("Workspace not found");
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
       }
 
       // Check access
@@ -31,19 +36,17 @@ export class MembersService {
         const hasAccess = userWorkspaces.some((ws) => ws.id === workspaceId);
 
         if (!hasAccess) {
-          throw new Error("Access denied to this workspace");
+          const error = new Error("Access denied to this workspace");
+          error.statusCode = HTTP_STATUS.FORBIDDEN;
+          throw error;
         }
       }
 
-      const members = await this.membersRepo.findByWorkspaceId(workspaceId);
-
-      return {
-        success: true,
-        message: "Workspace members retrieved successfully",
-        data: { members },
-      };
+      const members = await this.repository.findByWorkspaceId(workspaceId);
+      return members;
     } catch (error) {
-      throw new Error(error.message);
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to get workspace members: ${error.message}`);
     }
   }
 
@@ -52,87 +55,88 @@ export class MembersService {
       // Get workspace info
       const workspace = await this.workspacesRepo.findById(workspaceId);
       if (!workspace) {
-        throw new Error("Workspace not found");
+        const error = new Error("Workspace not found");
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
       }
 
       // Check permissions
       if (!canManageWorkspaceMembers(requestingUser.role, workspace.name)) {
-        throw new Error(
+        const error = new Error(
           "Access denied. Only Manager and relevant Department Heads can manage members"
         );
-      }
-
-      // Owner override logging
-      if (requestingUser.role === ROLES.OWNER) {
-        console.log(
-          `⚠️ Owner override: Adding member to "${workspace.name}". Consider delegating to Manager/Department Head.`
-        );
+        error.statusCode = HTTP_STATUS.FORBIDDEN;
+        throw error;
       }
 
       const { userId, role } = memberData;
 
       // Validate required fields
       if (!userId || !role) {
-        throw new Error("User ID and role are required");
+        const error = new Error("User ID and role are required");
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
       }
 
       // Validate workspace role
       if (!Object.values(WORKSPACE_ROLES).includes(role)) {
-        throw new Error(
+        const error = new Error(
           `Invalid workspace role. Valid roles are: ${Object.values(
             WORKSPACE_ROLES
           ).join(", ")}`
         );
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
       }
 
-      // REVISI: Department heads can only add users from their department
-      if (isDepartmentHead(requestingUser.role)) {
-        const targetUser = await this.usersRepo.findById(userId);
-        if (!targetUser) {
-          throw new Error("Target user not found");
-        }
+      // Check if user exists
+      const targetUser = await this.usersRepo.findById(userId);
+      if (!targetUser) {
+        const error = new Error("Target user not found");
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
+      }
 
+      // Department heads can only add users from their department
+      if (isDepartmentHead(requestingUser.role)) {
         const requestingUserDepartment = getDepartmentFromRole(
           requestingUser.role
         );
         const targetUserDepartment = getDepartmentFromRole(targetUser.role);
 
-        // Allow adding users from same department OR to general workspace
         if (
           targetUserDepartment !== requestingUserDepartment &&
           workspace.name !== "Independence Day"
         ) {
-          throw new Error(
+          const error = new Error(
             `Access denied. You can only add users from ${requestingUserDepartment} department to this workspace`
           );
+          error.statusCode = HTTP_STATUS.FORBIDDEN;
+          throw error;
         }
       }
 
       // Check if user is already a member
-      const existingMember = await this.membersRepo.findMember(
+      const existingMember = await this.repository.findMember(
         workspaceId,
         userId
       );
       if (existingMember) {
-        throw new Error("User is already a member of this workspace");
+        const error = new Error("User is already a member of this workspace");
+        error.statusCode = HTTP_STATUS.CONFLICT;
+        throw error;
       }
 
-      const newMember = await this.membersRepo.addMember({
+      const newMember = await this.repository.addMember({
         workspaceId,
         userId,
         role,
       });
 
-      return {
-        success: true,
-        message: "Member added successfully",
-        data: {
-          member: newMember,
-          managedBy: requestingUser.role,
-        },
-      };
+      return newMember;
     } catch (error) {
-      throw new Error(error.message);
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to add member: ${error.message}`);
     }
   }
 
@@ -141,43 +145,29 @@ export class MembersService {
       // Check if workspace exists
       const workspace = await this.workspacesRepo.findById(workspaceId);
       if (!workspace) {
-        throw new Error("Workspace not found");
+        const error = new Error("Workspace not found");
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
       }
 
       // Check permissions
       if (!canManageWorkspaceMembers(user.role, workspace.name)) {
-        throw new Error(
+        const error = new Error(
           "Access denied. Only Manager and relevant Department Heads can manage members"
         );
-      }
-
-      // REVISI: Department heads can only manage users from their department
-      if (isDepartmentHead(user.role)) {
-        const targetUser = await this.usersRepo.findById(userId);
-        if (!targetUser) {
-          throw new Error("Target user not found");
-        }
-
-        const requestingUserDepartment = getDepartmentFromRole(user.role);
-        const targetUserDepartment = getDepartmentFromRole(targetUser.role);
-
-        if (
-          targetUserDepartment !== requestingUserDepartment &&
-          workspace.name !== "Independence Day"
-        ) {
-          throw new Error(
-            `Access denied. You can only manage users from ${requestingUserDepartment} department`
-          );
-        }
+        error.statusCode = HTTP_STATUS.FORBIDDEN;
+        throw error;
       }
 
       // Find existing member
-      const existingMember = await this.membersRepo.findMember(
+      const existingMember = await this.repository.findMember(
         workspaceId,
         userId
       );
       if (!existingMember) {
-        throw new Error("Member not found in this workspace");
+        const error = new Error("Member not found in this workspace");
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
       }
 
       // Validate workspace role if provided
@@ -185,21 +175,20 @@ export class MembersService {
         memberData.role &&
         !Object.values(WORKSPACE_ROLES).includes(memberData.role)
       ) {
-        throw new Error("Invalid workspace role");
+        const error = new Error("Invalid workspace role");
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
       }
 
-      const updatedMember = await this.membersRepo.updateMember(
+      const updatedMember = await this.repository.updateMember(
         existingMember.id,
         memberData
       );
 
-      return {
-        success: true,
-        message: "Member updated successfully",
-        data: { member: updatedMember },
-      };
+      return updatedMember;
     } catch (error) {
-      throw new Error(error.message);
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to update member: ${error.message}`);
     }
   }
 
@@ -208,53 +197,36 @@ export class MembersService {
       // Check if workspace exists
       const workspace = await this.workspacesRepo.findById(workspaceId);
       if (!workspace) {
-        throw new Error("Workspace not found");
+        const error = new Error("Workspace not found");
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
       }
 
       // Check permissions
       if (!canManageWorkspaceMembers(user.role, workspace.name)) {
-        throw new Error(
+        const error = new Error(
           "Access denied. Only Manager and relevant Department Heads can manage members"
         );
-      }
-
-      // REVISI: Department heads can only remove users from their department
-      if (isDepartmentHead(user.role)) {
-        const targetUser = await this.usersRepo.findById(userId);
-        if (!targetUser) {
-          throw new Error("Target user not found");
-        }
-
-        const requestingUserDepartment = getDepartmentFromRole(user.role);
-        const targetUserDepartment = getDepartmentFromRole(targetUser.role);
-
-        if (
-          targetUserDepartment !== requestingUserDepartment &&
-          workspace.name !== "Independence Day"
-        ) {
-          throw new Error(
-            `Access denied. You can only remove users from ${requestingUserDepartment} department`
-          );
-        }
+        error.statusCode = HTTP_STATUS.FORBIDDEN;
+        throw error;
       }
 
       // Find existing member
-      const existingMember = await this.membersRepo.findMember(
+      const existingMember = await this.repository.findMember(
         workspaceId,
         userId
       );
       if (!existingMember) {
-        throw new Error("Member not found in this workspace");
+        const error = new Error("Member not found in this workspace");
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
       }
 
-      await this.membersRepo.removeMemberByIds(workspaceId, userId);
-
-      return {
-        success: true,
-        message: "Member removed successfully",
-      };
+      await this.repository.removeMemberByIds(workspaceId, userId);
+      return existingMember;
     } catch (error) {
-      throw new Error(error.message);
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to remove member: ${error.message}`);
     }
   }
 }

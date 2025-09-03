@@ -1,24 +1,30 @@
 import { Router } from "express";
-import { login, verifyToken, logout, getProfile } from "./auth.controller.js";
-import { verifyToken as authMiddleware } from "../../common/middlewares/auth.js";
+import { authenticateToken } from "../../common/middlewares/auth.js"; // GANTI DARI verifyToken KE authenticateToken
+import {
+  register,
+  login,
+  refreshToken,
+  logout,
+  getProfile,
+  updateProfile,
+  changePassword,
+} from "./auth.controller.js";
 
 const router = Router();
 
 /**
  * @swagger
  * tags:
- *   name: Authentication
- *   description: User authentication and authorization endpoints
+ *   name: Auth
+ *   description: Authentication endpoints
  */
 
 /**
  * @swagger
- * /auth/login:
+ * /auth/register:
  *   post:
- *     summary: User login
- *     description: Authenticate user with username and password to get JWT token
- *     tags: [Authentication]
- *     security: []
+ *     summary: Register a new user
+ *     tags: [Auth]
  *     requestBody:
  *       required: true
  *       content:
@@ -27,82 +33,35 @@ const router = Router();
  *             type: object
  *             required:
  *               - name
+ *               - email
  *               - password
+ *               - role
  *             properties:
  *               name:
  *                 type: string
- *                 description: Username for authentication
- *                 example: company_owner
+ *               email:
+ *                 type: string
+ *                 format: email
  *               password:
  *                 type: string
- *                 description: User password (minimum 8 characters)
- *                 example: aaaaaaaa
+ *                 minLength: 6
+ *               role:
+ *                 type: string
+ *                 enum: [MANAGER, HUMAS_HEAD, ACARA_HEAD, KONSUMSI_HEAD, DEKORASI_HEAD, KEAMANAN_HEAD, HUMAS_STAFF, ACARA_STAFF, KONSUMSI_STAFF, DEKORASI_STAFF, KEAMANAN_STAFF]
  *     responses:
- *       200:
- *         description: Login successful
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Login successful
- *                 data:
- *                   type: object
- *                   properties:
- *                     token:
- *                       type: string
- *                       description: JWT access token
- *                       example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJjb21wYW55X293bmVyIiwicm9sZSI6Im93bmVyIiwiaWF0IjoxNjI5ODM5MjQyfQ.xyz
- *                     user:
- *                       $ref: '#/components/schemas/User'
- *       400:
- *         description: Invalid credentials or validation error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Invalid username or password
- *       422:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Username and password are required
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *       201:
+ *         description: User registered successfully
+ *       409:
+ *         description: User already exists
  */
-router.post("/login", login);
+router.post("/register", register);
 
 /**
  * @swagger
- * /auth/verify:
+ * /auth/login:
  *   post:
- *     summary: Verify JWT token
- *     description: Validate JWT token and return token validity status
- *     tags: [Authentication]
- *     security: []
+ *     summary: User login
+ *     tags: [Auth]
  *     requestBody:
  *       required: true
  *       content:
@@ -110,179 +69,130 @@ router.post("/login", login);
  *           schema:
  *             type: object
  *             required:
- *               - token
+ *               - email
+ *               - password
  *             properties:
- *               token:
+ *               email:
  *                 type: string
- *                 description: JWT token to verify
- *                 example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJjb21wYW55X293bmVyIiwicm9sZSI6Im93bmVyIiwiaWF0IjoxNjI5ODM5MjQyfQ.xyz
+ *                 format: email
+ *               password:
+ *                 type: string
  *     responses:
  *       200:
- *         description: Token is valid
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Token is valid
- *                 data:
- *                   type: object
- *                   properties:
- *                     userId:
- *                       type: integer
- *                       example: 1
- *                     username:
- *                       type: string
- *                       example: company_owner
- *                     role:
- *                       type: string
- *                       example: owner
- *       400:
- *         description: Token is invalid or expired
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Invalid or expired token
- *       422:
- *         description: Token is required
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Token is required
+ *         description: Login successful
+ *       401:
+ *         description: Invalid credentials
  */
-router.post("/verify", verifyToken);
+router.post("/login", login);
 
-// Protected routes
-router.use(authMiddleware);
+/**
+ * @swagger
+ * /auth/refresh:
+ *   post:
+ *     summary: Refresh access token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *       401:
+ *         description: Invalid refresh token
+ */
+router.post("/refresh", refreshToken);
 
 /**
  * @swagger
  * /auth/logout:
  *   post:
  *     summary: User logout
- *     description: Logout current user (invalidate token on client side)
- *     tags: [Authentication]
+ *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Logout successful
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Logout successful
- *       401:
- *         description: Unauthorized - Invalid or missing token
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Unauthorized access
  */
-router.post("/logout", logout);
+router.post("/logout", authenticateToken, logout); // GUNAKAN authenticateToken
 
 /**
  * @swagger
  * /auth/profile:
  *   get:
  *     summary: Get current user profile
- *     description: Retrieve detailed information about the currently authenticated user
- *     tags: [Authentication]
+ *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Profile retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Profile retrieved successfully
- *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: integer
- *                           example: 1
- *                         name:
- *                           type: string
- *                           example: company_owner
- *                         role:
- *                           type: string
- *                           enum: [owner, manager, head_it, head_marketing, head_finance, staff_it, staff_marketing, staff_finance]
- *                           example: owner
- *                         createdAt:
- *                           type: string
- *                           format: date-time
- *                           example: 2024-08-28T10:30:00.000Z
- *       401:
- *         description: Unauthorized - Invalid or missing token
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Unauthorized access
- *       404:
- *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: User not found
  */
-router.get("/profile", getProfile);
+router.get("/profile", authenticateToken, getProfile); // GUNAKAN authenticateToken
+
+/**
+ * @swagger
+ * /auth/profile:
+ *   put:
+ *     summary: Update user profile
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ */
+router.put("/profile", authenticateToken, updateProfile); // GUNAKAN authenticateToken
+
+/**
+ * @swagger
+ * /auth/change-password:
+ *   put:
+ *     summary: Change user password
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 6
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       400:
+ *         description: Current password is incorrect
+ */
+router.put("/change-password", authenticateToken, changePassword); // GUNAKAN authenticateToken
 
 export default router;

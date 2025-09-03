@@ -1,149 +1,113 @@
+import { BaseRepository } from "../../common/repository/base.repository.js";
 import { db } from "../../config/db.js";
-import {
-  tasks,
-  users,
-  workspaces,
-  workspacesMembers,
-} from "../../../drizzle/schema.js";
-import { eq, like, or, and, isNull } from "drizzle-orm";
+import { tasks, users, workspaces } from "../../../drizzle/schema.js";
+import { eq, and, ilike, count } from "drizzle-orm";
 
-export class TasksRepository {
-  async findAll(filters = {}) {
-    let query = db
-      .select({
-        id: tasks.id,
-        workspaceId: tasks.workspaceId,
-        workspaceName: workspaces.name,
-        title: tasks.title,
-        description: tasks.description,
-        status: tasks.status,
-        assignTo: tasks.assignTo,
-        assigneeName: users.name,
-        dueDate: tasks.dueDate,
-        createdAt: tasks.createdAt,
-        updatedAt: tasks.updatedAt,
-      })
-      .from(tasks)
-      .leftJoin(users, eq(tasks.assignTo, users.id))
-      .leftJoin(workspaces, eq(tasks.workspaceId, workspaces.id));
+export class TasksRepository extends BaseRepository {
+  constructor() {
+    super(tasks, "task");
+  }
 
-    // Apply filters
+  async findAll(options = {}) {
+    return super.findAll({
+      ...options,
+      searchField: "title",
+      additionalConditions: this.buildAdditionalConditions(options),
+    });
+  }
+
+  buildAdditionalConditions(options) {
     const conditions = [];
 
-    if (filters.workspaceId) {
-      conditions.push(eq(tasks.workspaceId, filters.workspaceId));
+    if (options.workspaceId) {
+      conditions.push(eq(tasks.workspaceId, options.workspaceId));
     }
 
-    if (filters.status) {
-      conditions.push(eq(tasks.status, filters.status));
+    if (options.status) {
+      conditions.push(eq(tasks.status, options.status));
     }
 
-    if (filters.assignTo) {
-      conditions.push(eq(tasks.assignTo, filters.assignTo));
+    if (options.priority) {
+      conditions.push(eq(tasks.priority, options.priority));
     }
 
-    if (filters.search) {
-      conditions.push(
-        or(
-          like(tasks.title, `%${filters.search}%`),
-          like(tasks.description, `%${filters.search}%`)
-        )
-      );
+    if (options.assignedTo) {
+      conditions.push(eq(tasks.assignedTo, options.assignedTo));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+    return conditions.length > 0 ? and(...conditions) : null;
+  }
+
+  async findByWorkspaceId(workspaceId, options = {}) {
+    return this.findAll({
+      ...options,
+      workspaceId,
+    });
+  }
+
+  async findByAssignedUser(userId, options = {}) {
+    return this.findAll({
+      ...options,
+      assignedTo: userId,
+    });
+  }
+
+  async findWithDetails(taskId) {
+    try {
+      const result = await db
+        .select({
+          id: tasks.id,
+          title: tasks.title,
+          description: tasks.description,
+          status: tasks.status,
+          priority: tasks.priority,
+          dueDate: tasks.dueDate,
+          createdAt: tasks.createdAt,
+          updatedAt: tasks.updatedAt,
+          workspace: {
+            id: workspaces.id,
+            name: workspaces.name,
+          },
+          creator: {
+            id: users.id,
+            name: users.name,
+            email: users.email,
+          },
+          assignee: {
+            id: users.id,
+            name: users.name,
+            email: users.email,
+          },
+        })
+        .from(tasks)
+        .leftJoin(workspaces, eq(tasks.workspaceId, workspaces.id))
+        .leftJoin(users, eq(tasks.createdBy, users.id))
+        .leftJoin(users, eq(tasks.assignedTo, users.id))
+        .where(eq(tasks.id, taskId));
+
+      return result[0] || null;
+    } catch (error) {
+      throw new Error(`Failed to find task with details: ${error.message}`);
     }
-
-    return await query;
   }
 
-  async findById(id) {
-    const result = await db
-      .select({
-        id: tasks.id,
-        workspaceId: tasks.workspaceId,
-        workspaceName: workspaces.name,
-        title: tasks.title,
-        description: tasks.description,
-        status: tasks.status,
-        assignTo: tasks.assignTo,
-        assigneeName: users.name,
-        dueDate: tasks.dueDate,
-        createdAt: tasks.createdAt,
-        updatedAt: tasks.updatedAt,
-      })
-      .from(tasks)
-      .leftJoin(users, eq(tasks.assignTo, users.id))
-      .leftJoin(workspaces, eq(tasks.workspaceId, workspaces.id))
-      .where(eq(tasks.id, id));
+  async countByStatus(workspaceId = null) {
+    try {
+      let query = db
+        .select({
+          status: tasks.status,
+          count: count(),
+        })
+        .from(tasks)
+        .groupBy(tasks.status);
 
-    return result[0] || null;
-  }
+      if (workspaceId) {
+        query = query.where(eq(tasks.workspaceId, workspaceId));
+      }
 
-  async findByWorkspaceId(workspaceId) {
-    const result = await db
-      .select({
-        id: tasks.id,
-        workspaceId: tasks.workspaceId,
-        title: tasks.title,
-        description: tasks.description,
-        status: tasks.status,
-        assignTo: tasks.assignTo,
-        assigneeName: users.name,
-        dueDate: tasks.dueDate,
-        createdAt: tasks.createdAt,
-        updatedAt: tasks.updatedAt,
-      })
-      .from(tasks)
-      .leftJoin(users, eq(tasks.assignTo, users.id))
-      .where(eq(tasks.workspaceId, workspaceId));
-
-    return result;
-  }
-
-  async findByAssignee(userId) {
-    const result = await db
-      .select({
-        id: tasks.id,
-        workspaceId: tasks.workspaceId,
-        workspaceName: workspaces.name,
-        title: tasks.title,
-        description: tasks.description,
-        status: tasks.status,
-        assignTo: tasks.assignTo,
-        dueDate: tasks.dueDate,
-        createdAt: tasks.createdAt,
-        updatedAt: tasks.updatedAt,
-      })
-      .from(tasks)
-      .leftJoin(workspaces, eq(tasks.workspaceId, workspaces.id))
-      .where(eq(tasks.assignTo, userId));
-
-    return result;
-  }
-
-  async create(taskData) {
-    const result = await db.insert(tasks).values(taskData).returning();
-    return result[0];
-  }
-
-  async update(id, taskData) {
-    const updateData = {
-      ...taskData,
-      updatedAt: new Date(),
-    };
-
-    const result = await db
-      .update(tasks)
-      .set(updateData)
-      .where(eq(tasks.id, id))
-      .returning();
-    return result[0] || null;
-  }
-
-  async delete(id) {
-    const result = await db.delete(tasks).where(eq(tasks.id, id)).returning();
-    return result[0] || null;
+      return await query;
+    } catch (error) {
+      throw new Error(`Failed to count tasks by status: ${error.message}`);
+    }
   }
 }

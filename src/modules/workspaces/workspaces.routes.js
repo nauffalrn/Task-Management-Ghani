@@ -1,14 +1,18 @@
 import { Router } from "express";
+import { authenticateToken } from "../../common/middlewares/auth.js";
 import {
   getWorkspaces,
   getWorkspaceById,
   createWorkspace,
   updateWorkspace,
   deleteWorkspace,
+  getWorkspaceStats, // Tambahkan ini
 } from "./workspaces.controller.js";
-import { verifyToken } from "../../common/middlewares/auth.js";
 
 const router = Router();
+
+// All routes require authentication
+router.use(authenticateToken);
 
 /**
  * @swagger
@@ -17,54 +21,105 @@ const router = Router();
  *   description: Workspace management endpoints (project containers)
  */
 
-// All routes require authentication
-router.use(verifyToken);
-
 /**
  * @swagger
  * /workspaces:
  *   get:
- *     summary: Get all workspaces
- *     description: Retrieve list of workspaces based on user role. Members see only workspaces they belong to.
+ *     summary: Get all workspaces accessible to user
  *     tags: [Workspaces]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for workspace name or description
  *     responses:
  *       200:
  *         description: Workspaces retrieved successfully
+ */
+router.get("/", getWorkspaces);
+
+/**
+ * @swagger
+ * /workspaces/{id}/stats:
+ *   get:
+ *     summary: Get workspace statistics
+ *     description: Get detailed statistics for a specific workspace
+ *     tags: [Workspaces]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Workspace ID
+ *     responses:
+ *       200:
+ *         description: Workspace statistics retrieved successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
+ *                 status:
+ *                   type: string
+ *                   example: success
  *                 message:
  *                   type: string
- *                   example: Workspaces retrieved successfully
+ *                   example: Workspace statistics retrieved successfully
  *                 data:
  *                   type: object
  *                   properties:
- *                     workspaces:
- *                       type: array
- *                       items:
- *                         $ref: '#/components/schemas/Workspace'
- *                     total:
+ *                     totalMembers:
  *                       type: integer
- *                       example: 5
- *                     userRole:
- *                       type: string
- *                       example: head_it
- *       401:
- *         description: Unauthorized access
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *                       example: 15
+ *                     adminCount:
+ *                       type: integer
+ *                       example: 3
+ *                     memberCount:
+ *                       type: integer
+ *                       example: 12
+ *       403:
+ *         description: Access denied to this workspace
+ *       404:
+ *         description: Workspace not found
+ */
+router.get("/:id/stats", getWorkspaceStats);
+
+/**
+ * @swagger
+ * /workspaces/{id}:
+ *   get:
+ *     summary: Get workspace by ID
+ *     tags: [Workspaces]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Workspace ID
+ *     responses:
+ *       200:
+ *         description: Workspace retrieved successfully
+ *       403:
+ *         description: Access denied to this workspace
+ *       404:
+ *         description: Workspace not found
+ */
+router.get("/:id", getWorkspaceById);
+
+/**
+ * @swagger
+ * /workspaces:
  *   post:
  *     summary: Create a new workspace
- *     description: Create a new workspace (project). Only managers and department heads can create workspaces.
  *     tags: [Workspaces]
  *     security:
  *       - bearerAuth: []
@@ -76,128 +131,28 @@ router.use(verifyToken);
  *             type: object
  *             required:
  *               - name
- *               - description
  *             properties:
  *               name:
  *                 type: string
- *                 description: Unique name for the workspace
- *                 example: Mobile App Development
- *                 minLength: 3
- *                 maxLength: 100
+ *                 description: Workspace name
  *               description:
  *                 type: string
- *                 description: Detailed description of the workspace purpose
- *                 example: Development workspace for mobile application project
- *                 maxLength: 500
+ *                 description: Workspace description
  *     responses:
  *       201:
  *         description: Workspace created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Workspace created successfully
- *                 data:
- *                   type: object
- *                   properties:
- *                     workspace:
- *                       $ref: '#/components/schemas/Workspace'
  *       400:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Invalid input data
  *       403:
- *         description: Access denied - only managers and department heads can create workspaces
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Access denied. Only managers and department heads can create workspaces.
- *       409:
- *         description: Workspace name already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Access denied - insufficient permissions
  */
-router.get("/", getWorkspaces);
 router.post("/", createWorkspace);
 
 /**
  * @swagger
  * /workspaces/{id}:
- *   get:
- *     summary: Get workspace by ID
- *     description: Retrieve detailed information about a specific workspace
- *     tags: [Workspaces]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *           minimum: 1
- *         description: Unique identifier of the workspace
- *         example: 1
- *     responses:
- *       200:
- *         description: Workspace retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Workspace retrieved successfully
- *                 data:
- *                   type: object
- *                   properties:
- *                     workspace:
- *                       allOf:
- *                         - $ref: '#/components/schemas/Workspace'
- *                         - type: object
- *                           properties:
- *                             memberCount:
- *                               type: integer
- *                               example: 5
- *                             taskCount:
- *                               type: integer
- *                               example: 12
- *       404:
- *         description: Workspace not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       403:
- *         description: Access denied - not a member of this workspace
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *   put:
- *     summary: Update workspace
- *     description: Update workspace information (name and/or description)
+ *     summary: Update a workspace
  *     tags: [Workspaces]
  *     security:
  *       - bearerAuth: []
@@ -207,9 +162,7 @@ router.post("/", createWorkspace);
  *         required: true
  *         schema:
  *           type: integer
- *           minimum: 1
- *         description: Unique identifier of the workspace to update
- *         example: 1
+ *         description: Workspace ID
  *     requestBody:
  *       required: true
  *       content:
@@ -219,43 +172,27 @@ router.post("/", createWorkspace);
  *             properties:
  *               name:
  *                 type: string
- *                 description: New workspace name
- *                 example: Updated Mobile App Development
- *                 minLength: 3
- *                 maxLength: 100
+ *                 description: Workspace name
  *               description:
  *                 type: string
- *                 description: New workspace description
- *                 example: Updated description for mobile application project
- *                 maxLength: 500
+ *                 description: Workspace description
  *     responses:
  *       200:
  *         description: Workspace updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Success'
  *       400:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       404:
- *         description: Workspace not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Invalid input data
  *       403:
  *         description: Access denied - insufficient permissions
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Workspace not found
+ */
+router.put("/:id", updateWorkspace);
+
+/**
+ * @swagger
+ * /workspaces/{id}:
  *   delete:
- *     summary: Delete workspace
- *     description: Permanently delete a workspace and all its associated data
+ *     summary: Delete a workspace
  *     tags: [Workspaces]
  *     security:
  *       - bearerAuth: []
@@ -265,38 +202,15 @@ router.post("/", createWorkspace);
  *         required: true
  *         schema:
  *           type: integer
- *           minimum: 1
- *         description: Unique identifier of the workspace to delete
- *         example: 1
+ *         description: Workspace ID
  *     responses:
  *       200:
  *         description: Workspace deleted successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Workspace deleted successfully
+ *       403:
+ *         description: Access denied - insufficient permissions
  *       404:
  *         description: Workspace not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       403:
- *         description: Access denied - only managers and workspace creators can delete
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
-router.get("/:id", getWorkspaceById);
-router.put("/:id", updateWorkspace);
 router.delete("/:id", deleteWorkspace);
 
 export default router;

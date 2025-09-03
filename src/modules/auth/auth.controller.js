@@ -1,54 +1,161 @@
+import { BaseController } from "../../common/controller/base.controller.js";
 import { AuthService } from "./auth.service.js";
-import { asyncHandler } from "../../common/middlewares/error.js";
+import { ResponseHelper } from "../../common/utils/response.helper.js";
 
-const authService = new AuthService();
-
-export const login = asyncHandler(async (req, res) => {
-  const { name, password } = req.body;
-
-  if (!name || !password) {
-    return res.status(400).json({
-      success: false,
-      message: "Name and password are required",
-      error_code: "MISSING_CREDENTIALS",
-    });
+export class AuthController extends BaseController {
+  constructor() {
+    const authService = new AuthService();
+    super(authService, "Auth");
   }
 
-  const result = await authService.login(name, password);
+  async register(req, res, next) {
+    try {
+      const userData = req.body;
+      const user = await this.service.register(userData);
 
-  res.status(200).json(result);
-});
-
-export const verifyToken = asyncHandler(async (req, res) => {
-  const token = req.header("Authorization")?.replace("Bearer ", "");
-
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: "No token provided",
-      error_code: "NO_TOKEN",
-    });
+      return ResponseHelper.created(res, user, "User registered successfully");
+    } catch (error) {
+      next(error);
+    }
   }
 
-  const result = await authService.verifyToken(token);
+  async login(req, res, next) {
+    try {
+      const { email, password } = req.body;
 
-  res.status(200).json(result);
-});
+      if (!email || !password) {
+        return ResponseHelper.badRequest(
+          res,
+          "Email and password are required"
+        );
+      }
 
-export const logout = asyncHandler(async (req, res) => {
-  // For JWT, logout is handled on client-side by removing token
-  res.status(200).json({
-    success: true,
-    message: "Logged out successfully",
-  });
-});
+      const result = await this.service.login(email, password);
 
-export const getProfile = asyncHandler(async (req, res) => {
-  const { password: _, ...userWithoutPassword } = req.user;
+      return ResponseHelper.success(res, result, "Login successful");
+    } catch (error) {
+      next(error);
+    }
+  }
 
-  res.status(200).json({
-    success: true,
-    message: "Profile retrieved successfully",
-    data: { user: userWithoutPassword },
-  });
-});
+  async refreshToken(req, res, next) {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        return ResponseHelper.badRequest(res, "Refresh token is required");
+      }
+
+      const tokens = await this.service.refreshToken(refreshToken);
+
+      return ResponseHelper.success(
+        res,
+        tokens,
+        "Token refreshed successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async logout(req, res, next) {
+    try {
+      // For now, just return success
+      // In production, you might want to blacklist the token
+      return ResponseHelper.success(res, null, "Logout successful");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getProfile(req, res, next) {
+    try {
+      const userId = req.user.userId;
+      const user = await this.service.findById(userId);
+
+      if (!user) {
+        return ResponseHelper.notFound(res, "User not found");
+      }
+
+      return ResponseHelper.success(
+        res,
+        user,
+        "Profile retrieved successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateProfile(req, res, next) {
+    try {
+      const userId = req.user.userId;
+      const updateData = req.body;
+
+      // Don't allow password update through this endpoint
+      delete updateData.password;
+
+      const user = await this.service.update(userId, updateData);
+
+      return ResponseHelper.success(res, user, "Profile updated successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async changePassword(req, res, next) {
+    try {
+      const userId = req.user.userId;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return ResponseHelper.badRequest(
+          res,
+          "Current password and new password are required"
+        );
+      }
+
+      if (newPassword.length < 6) {
+        return ResponseHelper.badRequest(
+          res,
+          "New password must be at least 6 characters long"
+        );
+      }
+
+      const result = await this.service.changePassword(
+        userId,
+        currentPassword,
+        newPassword
+      );
+
+      return ResponseHelper.success(
+        res,
+        result,
+        "Password changed successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+// Export individual functions for routes
+const controller = new AuthController();
+
+export const register = (req, res, next) => controller.register(req, res, next);
+
+export const login = (req, res, next) => controller.login(req, res, next);
+
+export const refreshToken = (req, res, next) =>
+  controller.refreshToken(req, res, next);
+
+export const logout = (req, res, next) => controller.logout(req, res, next);
+
+export const getProfile = (req, res, next) =>
+  controller.getProfile(req, res, next);
+
+export const updateProfile = (req, res, next) =>
+  controller.updateProfile(req, res, next);
+
+export const changePassword = (req, res, next) =>
+  controller.changePassword(req, res, next);

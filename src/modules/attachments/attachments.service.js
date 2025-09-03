@@ -1,20 +1,32 @@
+import { BaseService } from "../../common/service/base.service.js";
 import { AttachmentsRepository } from "./attachments.repo.js";
+import { HTTP_STATUS, PAGINATION } from "../../common/constants/app.js";
+import { ilike } from "drizzle-orm";
 import path from "path";
 import fs from "fs";
 
-export class AttachmentsService {
+export class AttachmentsService extends BaseService {
   constructor() {
-    this.attachmentsRepo = new AttachmentsRepository();
+    const attachmentsRepo = new AttachmentsRepository();
+    super(attachmentsRepo, "Attachment");
   }
 
   async uploadFile(file, taskId, userId) {
     try {
       if (!file) {
-        throw new Error("No file provided");
+        const error = new Error("No file provided");
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
+      }
+
+      if (!taskId || !userId) {
+        const error = new Error("Task ID and User ID are required");
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
       }
 
       // Create attachment record
-      const attachment = await this.attachmentsRepo.create({
+      const attachment = await this.repository.create({
         taskId,
         userId,
         fileName: file.filename,
@@ -25,55 +37,31 @@ export class AttachmentsService {
       });
 
       return {
-        success: true,
-        message: "File uploaded successfully",
-        data: {
-          attachment: {
-            ...attachment,
-            downloadUrl: this.getDownloadUrl(file.path),
-            previewUrl: this.getPreviewUrl(attachment),
-          },
-        },
+        ...attachment,
+        downloadUrl: this.getDownloadUrl(file.path),
+        previewUrl: this.getPreviewUrl(attachment),
+        formattedSize: this.formatFileSize(file.size),
+        isImage: file.mimetype.startsWith("image/"),
       };
     } catch (error) {
       // Clean up file if database save fails
       if (file && file.path && fs.existsSync(file.path)) {
         fs.unlinkSync(file.path);
       }
-      throw new Error(error.message);
-    }
-  }
-
-  // ADD: Missing getAttachmentById method
-  async getAttachmentById(attachmentId) {
-    try {
-      const attachment = await this.attachmentsRepo.findById(attachmentId);
-
-      if (!attachment) {
-        throw new Error("Attachment not found");
-      }
-
-      const attachmentWithUrls = {
-        ...attachment,
-        downloadUrl: this.getDownloadUrl(attachment.filePath),
-        previewUrl: this.getPreviewUrl(attachment),
-        isImage: attachment.fileType.startsWith("image/"),
-        formattedSize: this.formatFileSize(attachment.fileSize),
-      };
-
-      return {
-        success: true,
-        message: "Attachment retrieved successfully",
-        data: { attachment: attachmentWithUrls },
-      };
-    } catch (error) {
-      throw new Error(error.message);
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to upload file: ${error.message}`);
     }
   }
 
   async getTaskAttachments(taskId) {
     try {
-      const attachments = await this.attachmentsRepo.findByTaskId(taskId);
+      if (!taskId) {
+        const error = new Error("Task ID is required");
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
+      }
+
+      const attachments = await this.repository.findByTaskId(taskId);
 
       const attachmentsWithUrls = attachments.map((attachment) => ({
         ...attachment,
@@ -83,27 +71,28 @@ export class AttachmentsService {
         formattedSize: this.formatFileSize(attachment.fileSize),
       }));
 
-      return {
-        success: true,
-        message: "Attachments retrieved successfully",
-        data: { attachments: attachmentsWithUrls },
-      };
+      return attachmentsWithUrls;
     } catch (error) {
-      throw new Error(error.message);
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to get task attachments: ${error.message}`);
     }
   }
 
   async deleteAttachment(attachmentId, userId) {
     try {
-      const attachment = await this.attachmentsRepo.findById(attachmentId);
+      const attachment = await this.repository.findById(attachmentId);
 
       if (!attachment) {
-        throw new Error("Attachment not found");
+        const error = new Error("Attachment not found");
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
       }
 
       // Check if user owns the attachment or has permission
       if (attachment.userId !== userId) {
-        throw new Error("Access denied");
+        const error = new Error("Access denied");
+        error.statusCode = HTTP_STATUS.FORBIDDEN;
+        throw error;
       }
 
       // Delete file from filesystem
@@ -112,25 +101,22 @@ export class AttachmentsService {
       }
 
       // Delete from database
-      await this.attachmentsRepo.delete(attachmentId);
+      await this.repository.delete(attachmentId);
 
-      return {
-        success: true,
-        message: "Attachment deleted successfully",
-      };
+      return attachment;
     } catch (error) {
-      throw new Error(error.message);
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to delete attachment: ${error.message}`);
     }
   }
 
   // Helper methods
   getDownloadUrl(filePath) {
-    // Convert file path to URL path
     return filePath.replace("public", "");
   }
 
   getPreviewUrl(attachment) {
-    if (attachment.fileType && attachment.fileType.startsWith("image/")) {
+    if (attachment.fileType.startsWith("image/")) {
       return this.getDownloadUrl(attachment.filePath);
     }
     return null;

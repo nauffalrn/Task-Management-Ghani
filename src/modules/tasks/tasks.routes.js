@@ -1,14 +1,9 @@
 import { Router } from "express";
-import {
-  getTasks,
-  getTaskById,
-  createTask,
-  updateTask,
-  deleteTask,
-} from "./tasks.controller.js";
-import { verifyToken } from "../../common/middlewares/auth.js";
+import { TasksController } from "./tasks.controller.js";
+import { authenticateToken } from "../../common/middlewares/auth.js";
 
 const router = Router();
+const tasksController = new TasksController();
 
 /**
  * @swagger
@@ -18,7 +13,7 @@ const router = Router();
  */
 
 // All routes require authentication
-router.use(verifyToken);
+router.use(authenticateToken);
 
 /**
  * @swagger
@@ -205,8 +200,8 @@ router.use(verifyToken);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get("/", getTasks);
-router.post("/", createTask);
+router.get("/", tasksController.getAll.bind(tasksController));
+router.post("/", tasksController.create.bind(tasksController));
 
 /**
  * @swagger
@@ -395,8 +390,127 @@ router.post("/", createTask);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get("/:id", getTaskById);
-router.put("/:id", updateTask);
-router.delete("/:id", deleteTask);
+router.get("/:id", tasksController.getById.bind(tasksController));
+router.get(
+  "/:id/details",
+  tasksController.getTaskWithDetails.bind(tasksController)
+);
+router.put("/:id", tasksController.update.bind(tasksController));
+router.patch("/:id/status", tasksController.updateStatus.bind(tasksController));
+router.delete("/:id", tasksController.delete.bind(tasksController));
+
+/**
+ * @swagger
+ * /tasks/stats:
+ *   get:
+ *     summary: Get task statistics
+ *     description: Retrieve statistics about tasks (e.g., count by status, priority)
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Task statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Task statistics retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalTasks:
+ *                       type: integer
+ *                       example: 100
+ *                     tasksByStatus:
+ *                       type: object
+ *                       additionalProperties:
+ *                         type: integer
+ *                         example: 25
+ *                     tasksByPriority:
+ *                       type: object
+ *                       additionalProperties:
+ *                         type: integer
+ *                         example: 10
+ *       401:
+ *         description: Unauthorized access
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get("/stats", tasksController.getStats.bind(tasksController));
+
+/**
+ * @swagger
+ * /tasks/workspace/{workspaceId}:
+ *   get:
+ *     summary: Get tasks by workspace
+ *     description: Retrieve all tasks within a specific workspace
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: workspaceId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: ID of the workspace to filter tasks by
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Tasks retrieved successfully for the workspace
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Tasks retrieved successfully for the workspace
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tasks:
+ *                       type: array
+ *                       items:
+ *                         allOf:
+ *                           - $ref: '#/components/schemas/Task'
+ *                           - type: object
+ *                             properties:
+ *                               workspace:
+ *                                 $ref: '#/components/schemas/Workspace'
+ *                               assignedUser:
+ *                                 $ref: '#/components/schemas/User'
+ *                               creator:
+ *                                 $ref: '#/components/schemas/User'
+ *       404:
+ *         description: Workspace not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Access denied - not a member of workspace
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get(
+  "/workspace/:workspaceId",
+  tasksController.getByWorkspace.bind(tasksController)
+);
 
 export default router;

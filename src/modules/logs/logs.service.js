@@ -1,10 +1,13 @@
+import { BaseService } from "../../common/service/base.service.js";
 import { LogsRepository } from "./logs.repo.js";
 import { WorkspacesRepository } from "../workspaces/workspaces.repo.js";
 import { GLOBAL_ACCESS_ROLES } from "../../common/constants/roles.js";
+import { HTTP_STATUS } from "../../common/constants/app.js";
 
-export class LogsService {
+export class LogsService extends BaseService {
   constructor() {
-    this.logsRepo = new LogsRepository();
+    const logsRepo = new LogsRepository();
+    super(logsRepo, "Log");
     this.workspacesRepo = new WorkspacesRepository();
   }
 
@@ -14,7 +17,7 @@ export class LogsService {
 
       // If user has global access, get all logs or filter by workspace
       if (GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        logsList = await this.logsRepo.findAll(filters);
+        logsList = await this.repository.findAll(filters);
       } else {
         // Get logs from user's workspaces only
         const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
@@ -28,10 +31,12 @@ export class LogsService {
             filters.workspaceId &&
             !workspaceIds.includes(filters.workspaceId)
           ) {
-            throw new Error("Access denied to this workspace");
+            const error = new Error("Access denied to this workspace");
+            error.statusCode = HTTP_STATUS.FORBIDDEN;
+            throw error;
           }
 
-          logsList = await this.logsRepo.findAll(filters);
+          logsList = await this.repository.findAll(filters);
           // Filter logs by user's accessible workspaces
           logsList = logsList.filter((log) =>
             workspaceIds.includes(log.workspaceId)
@@ -39,13 +44,10 @@ export class LogsService {
         }
       }
 
-      return {
-        success: true,
-        message: "Logs retrieved successfully",
-        data: { logs: logsList },
-      };
+      return logsList;
     } catch (error) {
-      throw new Error(error.message);
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to get logs: ${error.message}`);
     }
   }
 
@@ -54,7 +56,9 @@ export class LogsService {
       // Check if workspace exists
       const workspace = await this.workspacesRepo.findById(workspaceId);
       if (!workspace) {
-        throw new Error("Workspace not found");
+        const error = new Error("Workspace not found");
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
       }
 
       // Check if user has access to this workspace
@@ -63,45 +67,43 @@ export class LogsService {
         const hasAccess = userWorkspaces.some((ws) => ws.id === workspaceId);
 
         if (!hasAccess) {
-          throw new Error("Access denied to this workspace");
+          const error = new Error("Access denied to this workspace");
+          error.statusCode = HTTP_STATUS.FORBIDDEN;
+          throw error;
         }
       }
 
-      const logsList = await this.logsRepo.findByWorkspaceId(workspaceId);
-
-      return {
-        success: true,
-        message: "Workspace logs retrieved successfully",
-        data: { logs: logsList },
-      };
+      const logsList = await this.repository.findByWorkspaceId(workspaceId);
+      return logsList;
     } catch (error) {
-      throw new Error(error.message);
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to get workspace logs: ${error.message}`);
     }
   }
 
-  async createLog(logData) {
+  // Override create to add validation
+  async create(logData) {
     try {
       const { workspaceId, taskId, userId, action } = logData;
 
       // Validate required fields
       if (!workspaceId || !userId || !action) {
-        throw new Error("Workspace ID, user ID, and action are required");
+        const error = new Error(
+          "Workspace ID, user ID, and action are required"
+        );
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
       }
 
-      const newLog = await this.logsRepo.create({
+      return await this.repository.create({
         workspaceId,
         taskId: taskId || null,
         userId,
         action,
       });
-
-      return {
-        success: true,
-        message: "Log created successfully",
-        data: { log: newLog },
-      };
     } catch (error) {
-      throw new Error(error.message);
+      if (error.statusCode) throw error;
+      throw new Error(`Failed to create log: ${error.message}`);
     }
   }
 }
