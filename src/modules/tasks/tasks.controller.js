@@ -1,168 +1,227 @@
 import { BaseController } from "../../common/controller/base.controller.js";
 import { TasksService } from "./tasks.service.js";
-import { ResponseHelper } from "../../common/utils/response.helper.js";
-import { PAGINATION } from "../../common/constants/app.js";
 
-export class TasksController extends BaseController {
+class TasksController extends BaseController {
   constructor() {
-    const tasksService = new TasksService();
-    super(tasksService, "Task");
+    super();
+    this.tasksService = new TasksService();
   }
 
-  // Override getAll to handle task-specific filters
-  async getAll(req, res, next) {
+  getAllTasks = async (req, res) => {
     try {
-      const page = parseInt(req.query.page) || 1;
-      const limit = Math.min(
-        parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT,
-        PAGINATION.MAX_LIMIT
-      );
-      const search = req.query.search || "";
-      const status = req.query.status || "";
-      const priority = req.query.priority || "";
-      const workspaceId = req.query.workspaceId;
-      const assignedTo = req.query.assignedTo;
-
-      const offset = (page - 1) * limit;
-      const result = await this.service.getTasks({
-        limit,
-        offset,
-        search,
+      const {
+        page = 1,
+        limit = 10,
+        workspaceId,
+        assigneeId,
         status,
         priority,
-        workspaceId,
-        assignedTo,
+        search,
+        overdue,
+      } = req.query;
+
+      const result = await this.tasksService.getAllTasks({
+        page: parseInt(page),
+        limit: parseInt(limit),
+        workspaceId: workspaceId ? parseInt(workspaceId) : undefined,
+        assigneeId: assigneeId ? parseInt(assigneeId) : undefined,
+        status,
+        priority,
+        search,
+        overdue: overdue === "true",
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
       });
 
-      const pagination = {
-        page,
-        limit,
-        total: result.total,
-        totalPages: Math.ceil(result.total / limit),
-      };
-
-      return ResponseHelper.successWithPagination(
+      return this.sendSuccessResponse(
         res,
+        "Tasks retrieved successfully",
         result.data,
-        pagination,
-        "Tasks retrieved successfully"
+        result.meta
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  // Override create to add user context
-  async create(req, res, next) {
-    try {
-      const taskData = {
-        ...req.body,
-        createdBy: req.user.userId, // From auth middleware
-      };
-
-      const result = await this.service.create(taskData);
-      return ResponseHelper.created(res, result, "Task created successfully");
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Custom method: Get task with details
-  async getTaskWithDetails(req, res, next) {
+  getTaskById = async (req, res) => {
     try {
       const { id } = req.params;
-      const task = await this.service.getTaskWithDetails(id);
 
-      if (!task) {
-        return ResponseHelper.notFound(res, "Task not found");
-      }
+      const task = await this.tasksService.getTaskById(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
 
-      return ResponseHelper.success(
+      return this.sendSuccessResponse(res, "Task retrieved successfully", task);
+    } catch (error) {
+      return this.sendErrorResponse(
         res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  createTask = async (req, res) => {
+    try {
+      const taskData = req.body;
+
+      const task = await this.tasksService.createTask(taskData, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "Task created successfully",
         task,
-        "Task details retrieved successfully"
+        null,
+        201
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  // Custom method: Update task status
-  async updateStatus(req, res, next) {
+  updateTask = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+
+      const task = await this.tasksService.updateTask(id, updateData, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(res, "Task updated successfully", task);
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  updateTaskStatus = async (req, res) => {
     try {
       const { id } = req.params;
       const { status } = req.body;
-      const userId = req.user.userId;
 
-      const result = await this.service.updateStatus(id, status, userId);
-
-      if (!result) {
-        return ResponseHelper.notFound(res, "Task not found");
-      }
-
-      return ResponseHelper.success(
-        res,
-        result,
-        "Task status updated successfully"
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Custom method: Get tasks by workspace
-  async getByWorkspace(req, res, next) {
-    try {
-      const { workspaceId } = req.params;
-      const page = parseInt(req.query.page) || 1;
-      const limit = Math.min(
-        parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT,
-        PAGINATION.MAX_LIMIT
-      );
-      const search = req.query.search || "";
-      const status = req.query.status || "";
-      const priority = req.query.priority || "";
-
-      const offset = (page - 1) * limit;
-      const result = await this.service.getTasksByWorkspace(workspaceId, {
-        limit,
-        offset,
-        search,
-        status,
-        priority,
+      const task = await this.tasksService.updateTaskStatus(id, status, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
       });
 
-      const pagination = {
-        page,
-        limit,
-        total: result.total,
-        totalPages: Math.ceil(result.total / limit),
-      };
-
-      return ResponseHelper.successWithPagination(
+      return this.sendSuccessResponse(
         res,
-        result.data,
-        pagination,
-        "Workspace tasks retrieved successfully"
+        "Task status updated successfully",
+        task
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  // Custom method: Get task statistics
-  async getStats(req, res, next) {
+  deleteTask = async (req, res) => {
     try {
-      const { workspaceId } = req.query;
-      const stats = await this.service.getTaskStats(workspaceId);
+      const { id } = req.params;
 
-      return ResponseHelper.success(
+      await this.tasksService.deleteTask(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(res, "Task deleted successfully");
+    } catch (error) {
+      return this.sendErrorResponse(
         res,
-        stats,
-        "Task statistics retrieved successfully"
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  getTasksByWorkspace = async (req, res) => {
+    try {
+      const { workspaceId } = req.params;
+      const { page = 1, limit = 10, status, priority } = req.query;
+
+      const result = await this.tasksService.getTasksByWorkspace(workspaceId, {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        status,
+        priority,
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "Workspace tasks retrieved successfully",
+        result.data,
+        result.meta
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
+
+  getTasksByAssignee = async (req, res) => {
+    try {
+      const { assigneeId } = req.params;
+      const { page = 1, limit = 10, status } = req.query;
+
+      const result = await this.tasksService.getTasksByAssignee(assigneeId, {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        status,
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "User tasks retrieved successfully",
+        result.data,
+        result.meta
+      );
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
 }
+
+const tasksController = new TasksController();
+
+export const {
+  getAllTasks,
+  getTaskById,
+  createTask,
+  updateTask,
+  updateTaskStatus,
+  deleteTask,
+  getTasksByWorkspace,
+  getTasksByAssignee,
+} = tasksController;

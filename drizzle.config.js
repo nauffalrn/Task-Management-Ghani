@@ -1,7 +1,7 @@
 import { defineConfig } from "drizzle-kit";
-import { config } from "dotenv";
+import dotenv from "dotenv";
 
-config();
+dotenv.config();
 
 export default defineConfig({
   schema: "./drizzle/schema.js",
@@ -13,6 +13,11 @@ export default defineConfig({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    ssl: false,
+    ssl:
+      process.env.NODE_ENV === "production"
+        ? { rejectUnauthorized: false }
+        : false,
   },
+  verbose: true,
+  strict: true,
 });

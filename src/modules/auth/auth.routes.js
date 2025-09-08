@@ -1,14 +1,6 @@
 import { Router } from "express";
-import { authenticateToken } from "../../common/middlewares/auth.js"; // GANTI DARI verifyToken KE authenticateToken
-import {
-  register,
-  login,
-  refreshToken,
-  logout,
-  getProfile,
-  updateProfile,
-  changePassword,
-} from "./auth.controller.js";
+import { authenticateToken } from "../../common/middlewares/auth.js";
+import { login, register, logout, getProfile } from "./auth.controller.js";
 
 const router = Router();
 
@@ -16,7 +8,7 @@ const router = Router();
  * @swagger
  * tags:
  *   name: Auth
- *   description: Authentication endpoints
+ *   description: Authentication and authorization endpoints
  */
 
 /**
@@ -30,29 +22,22 @@ const router = Router();
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - name
- *               - email
- *               - password
- *               - role
- *             properties:
- *               name:
- *                 type: string
- *               email:
- *                 type: string
- *                 format: email
- *               password:
- *                 type: string
- *                 minLength: 6
- *               role:
- *                 type: string
- *                 enum: [MANAGER, HUMAS_HEAD, ACARA_HEAD, KONSUMSI_HEAD, DEKORASI_HEAD, KEAMANAN_HEAD, HUMAS_STAFF, ACARA_STAFF, KONSUMSI_STAFF, DEKORASI_STAFF, KEAMANAN_STAFF]
+ *             $ref: '#/components/schemas/RegisterRequest'
  *     responses:
  *       201:
  *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
  *       409:
- *         description: User already exists
+ *         description: Email already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post("/register", register);
 
@@ -60,69 +45,47 @@ router.post("/register", register);
  * @swagger
  * /auth/login:
  *   post:
- *     summary: User login
+ *     summary: Login user
  *     tags: [Auth]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *               password:
- *                 type: string
+ *             $ref: '#/components/schemas/LoginRequest'
  *     responses:
  *       200:
  *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
  *       401:
  *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post("/login", login);
 
 /**
  * @swagger
- * /auth/refresh:
- *   post:
- *     summary: Refresh access token
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - refreshToken
- *             properties:
- *               refreshToken:
- *                 type: string
- *     responses:
- *       200:
- *         description: Token refreshed successfully
- *       401:
- *         description: Invalid refresh token
- */
-router.post("/refresh", refreshToken);
-
-/**
- * @swagger
  * /auth/logout:
  *   post:
- *     summary: User logout
+ *     summary: Logout user
  *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Logout successful
+ *         $ref: '#/components/responses/SuccessResponse'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
  */
-router.post("/logout", authenticateToken, logout); // GUNAKAN authenticateToken
+router.post("/logout", authenticateToken, logout);
 
 /**
  * @swagger
@@ -135,64 +98,22 @@ router.post("/logout", authenticateToken, logout); // GUNAKAN authenticateToken
  *     responses:
  *       200:
  *         description: Profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Profile retrieved successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
  */
-router.get("/profile", authenticateToken, getProfile); // GUNAKAN authenticateToken
-
-/**
- * @swagger
- * /auth/profile:
- *   put:
- *     summary: Update user profile
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               email:
- *                 type: string
- *                 format: email
- *     responses:
- *       200:
- *         description: Profile updated successfully
- */
-router.put("/profile", authenticateToken, updateProfile); // GUNAKAN authenticateToken
-
-/**
- * @swagger
- * /auth/change-password:
- *   put:
- *     summary: Change user password
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - currentPassword
- *               - newPassword
- *             properties:
- *               currentPassword:
- *                 type: string
- *               newPassword:
- *                 type: string
- *                 minLength: 6
- *     responses:
- *       200:
- *         description: Password changed successfully
- *       400:
- *         description: Current password is incorrect
- */
-router.put("/change-password", authenticateToken, changePassword); // GUNAKAN authenticateToken
+router.get("/profile", authenticateToken, getProfile);
 
 export default router;

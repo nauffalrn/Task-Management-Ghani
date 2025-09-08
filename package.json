@@ -1,33 +1,37 @@
 {
   "type": "module",
-  "dependencies": {
-    "bcryptjs": "^3.0.2",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.2",
-    "drizzle-orm": "^0.44.5",
-    "express": "^5.1.0",
-    "helmet": "^8.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.1",
-    "multer": "^2.0.2",
-    "path": "^0.12.7",
-    "pg": "^8.16.3",
-    "postgres": "^3.4.7",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1",
-    "uuid": "^11.1.0",
-    "winston": "^3.17.0"
-  },
-  "devDependencies": {
-    "drizzle-kit": "^0.31.4",
-    "nodemon": "^3.1.10"
-  },
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "seed": "node scripts/seed.js",
-    "db:studio": "npx drizzle-kit studio",
-    "drizzle:generate": "drizzle-kit generate",
-    "drizzle:push": "drizzle-kit push"
+    "build": "echo 'No build process needed for Node.js'",
+    "test": "echo 'No tests specified'",
+    "lint": "echo 'No linting configured'",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:drop": "drizzle-kit drop",
+    "db:studio": "drizzle-kit studio",
+    "db:migrate": "drizzle-kit migrate",
+    "db:reset": "node scripts/reset.js",
+    "db:seed": "node scripts/seed.js",
+    "db:fresh": "npm run db:reset && npm run db:seed"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "drizzle-orm": "^0.30.10",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.11.3",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.20.17",
+    "nodemon": "^3.0.2"
   }
 }

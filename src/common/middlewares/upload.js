@@ -1,72 +1,80 @@
 import multer from "multer";
 import path from "path";
-import fs from "fs";
-import { FILE_LIMITS } from "../constants/app.js";
-import { ResponseHelper } from "../utils/response.helper.js";
+import { fileURLToPath } from "url";
+import { AppError } from "../utils/appError.js";
 
-// Ensure upload directory exists
-const ensureUploadDir = (uploadPath) => {
-  if (!fs.existsSync(uploadPath)) {
-    fs.mkdirSync(uploadPath, { recursive: true });
-  }
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+// Configure storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = path.join(process.cwd(), "public", "uploads", "tasks");
-    ensureUploadDir(uploadPath);
+    const uploadPath = path.join(__dirname, "../../../public/uploads/tasks");
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
+    // Generate unique filename
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const extension = path.extname(file.originalname);
-    cb(null, file.fieldname + "-" + uniqueSuffix + extension);
+    const fileExtension = path.extname(file.originalname);
+    const filename = `${file.fieldname}-${uniqueSuffix}${fileExtension}`;
+    cb(null, filename);
   },
 });
 
+// File filter
 const fileFilter = (req, file, cb) => {
-  const isValidType = FILE_LIMITS.ALLOWED_TYPES.includes(file.mimetype);
-  const extension = path.extname(file.originalname).toLowerCase();
-  const isValidExtension = FILE_LIMITS.ALLOWED_EXTENSIONS.includes(extension);
+  // Allowed file types
+  const allowedTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    "text/csv",
+  ];
 
-  if (isValidType && isValidExtension) {
+  if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
     cb(
-      new Error(
-        `Invalid file type. Allowed types: ${FILE_LIMITS.ALLOWED_TYPES.join(
-          ", "
-        )}`
+      AppError.badRequest(
+        "Invalid file type. Only images, PDFs, and documents are allowed"
       ),
       false
     );
   }
 };
 
-export const upload = multer({
+// Configure multer
+const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: FILE_LIMITS.MAX_SIZE,
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
 });
 
-export const handleMulterError = (error, req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    if (error.code === "LIMIT_FILE_SIZE") {
-      return ResponseHelper.badRequest(
-        res,
-        `File too large. Maximum size allowed is ${
-          FILE_LIMITS.MAX_SIZE / (1024 * 1024)
-        }MB`
-      );
+export { upload };
+export const uploadSingle = upload.single("file");
+export const uploadMultiple = upload.array("files", 5); // Max 5 files
+
+// Error handling middleware for multer
+export const handleUploadError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return next(AppError.badRequest("File too large. Maximum size is 10MB"));
     }
-    return ResponseHelper.badRequest(res, error.message);
+    if (err.code === "LIMIT_FILE_COUNT") {
+      return next(AppError.badRequest("Too many files. Maximum is 5 files"));
+    }
+    if (err.code === "LIMIT_UNEXPECTED_FILE") {
+      return next(AppError.badRequest("Unexpected field name"));
+    }
   }
-
-  if (error.message.includes("Invalid file type")) {
-    return ResponseHelper.badRequest(res, error.message);
-  }
-
-  next(error);
+  next(err);
 };

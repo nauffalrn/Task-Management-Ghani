@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { upload, handleMulterError } from "../../common/middlewares/upload.js";
 import { authenticateToken } from "../../common/middlewares/auth.js";
+import { upload } from "../../common/middlewares/upload.js";
 import {
   getTaskAttachments,
   getAttachmentById,
-  createAttachment,
-  deleteAttachment,
+  uploadAttachment,
   downloadAttachment,
+  deleteAttachment,
 } from "./attachments.controller.js";
 
 const router = Router();
@@ -39,47 +39,29 @@ router.use(authenticateToken);
  *     responses:
  *       200:
  *         description: Task attachments retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Task attachments retrieved successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Attachment'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
  */
 router.get("/task/:taskId", getTaskAttachments);
-
-/**
- * @swagger
- * /attachments/task/{taskId}:
- *   post:
- *     summary: Upload file attachment to a task
- *     tags: [Attachments]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: taskId
- *         required: true
- *         schema:
- *           type: integer
- *         description: Task ID
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               file:
- *                 type: string
- *                 format: binary
- *                 description: File to upload
- *     responses:
- *       201:
- *         description: File uploaded successfully
- *       400:
- *         description: Invalid file or missing data
- */
-router.post(
-  "/task/:taskId",
-  upload.single("file"),
-  handleMulterError,
-  createAttachment
-);
 
 /**
  * @swagger
@@ -99,10 +81,87 @@ router.post(
  *     responses:
  *       200:
  *         description: Attachment details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Attachment retrieved successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/Attachment'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  *       404:
- *         description: Attachment not found
+ *         $ref: '#/components/responses/NotFoundError'
  */
 router.get("/:id", getAttachmentById);
+
+/**
+ * @swagger
+ * /attachments/task/{taskId}/upload:
+ *   post:
+ *     summary: Upload file attachment to a task
+ *     tags: [Attachments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: taskId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Task ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [file]
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: File to upload (max 10MB)
+ *     responses:
+ *       201:
+ *         description: File uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: File uploaded successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/Attachment'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
+ *       413:
+ *         description: File too large
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post("/task/:taskId/upload", upload.single("file"), uploadAttachment);
 
 /**
  * @swagger
@@ -121,14 +180,18 @@ router.get("/:id", getAttachmentById);
  *         description: Attachment ID
  *     responses:
  *       200:
- *         description: File download initiated
+ *         description: File download
  *         content:
  *           application/octet-stream:
  *             schema:
  *               type: string
  *               format: binary
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  *       404:
- *         description: Attachment or file not found
+ *         $ref: '#/components/responses/NotFoundError'
  */
 router.get("/:id/download", downloadAttachment);
 
@@ -136,7 +199,7 @@ router.get("/:id/download", downloadAttachment);
  * @swagger
  * /attachments/{id}:
  *   delete:
- *     summary: Delete an attachment
+ *     summary: Delete attachment (only by uploader or admin)
  *     tags: [Attachments]
  *     security:
  *       - bearerAuth: []
@@ -149,11 +212,13 @@ router.get("/:id/download", downloadAttachment);
  *         description: Attachment ID
  *     responses:
  *       200:
- *         description: Attachment deleted successfully
+ *         $ref: '#/components/responses/SuccessResponse'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
- *         description: Access denied - not the owner
+ *         $ref: '#/components/responses/ForbiddenError'
  *       404:
- *         description: Attachment not found
+ *         $ref: '#/components/responses/NotFoundError'
  */
 router.delete("/:id", deleteAttachment);
 

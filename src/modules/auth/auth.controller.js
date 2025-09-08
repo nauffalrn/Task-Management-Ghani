@@ -1,161 +1,86 @@
 import { BaseController } from "../../common/controller/base.controller.js";
 import { AuthService } from "./auth.service.js";
-import { ResponseHelper } from "../../common/utils/response.helper.js";
 
-export class AuthController extends BaseController {
+class AuthController extends BaseController {
   constructor() {
-    const authService = new AuthService();
-    super(authService, "Auth");
+    super();
+    this.authService = new AuthService();
   }
 
-  async register(req, res, next) {
+  register = async (req, res) => {
     try {
       const userData = req.body;
-      const user = await this.service.register(userData);
 
-      return ResponseHelper.created(res, user, "User registered successfully");
+      const result = await this.authService.register(userData);
+
+      return this.sendSuccessResponse(
+        res,
+        "User registered successfully",
+        result,
+        null,
+        201
+      );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  async login(req, res, next) {
+  login = async (req, res) => {
     try {
       const { email, password } = req.body;
 
-      if (!email || !password) {
-        return ResponseHelper.badRequest(
-          res,
-          "Email and password are required"
-        );
-      }
+      const result = await this.authService.login(email, password);
 
-      const result = await this.service.login(email, password);
-
-      return ResponseHelper.success(res, result, "Login successful");
+      return this.sendSuccessResponse(res, "Login successful", result);
     } catch (error) {
-      next(error);
-    }
-  }
-
-  async refreshToken(req, res, next) {
-    try {
-      const { refreshToken } = req.body;
-
-      if (!refreshToken) {
-        return ResponseHelper.badRequest(res, "Refresh token is required");
-      }
-
-      const tokens = await this.service.refreshToken(refreshToken);
-
-      return ResponseHelper.success(
+      return this.sendErrorResponse(
         res,
-        tokens,
-        "Token refreshed successfully"
+        error.message,
+        error.statusCode || 500
       );
-    } catch (error) {
-      next(error);
     }
-  }
+  };
 
-  async logout(req, res, next) {
+  logout = async (req, res) => {
     try {
-      // For now, just return success
-      // In production, you might want to blacklist the token
-      return ResponseHelper.success(res, null, "Logout successful");
+      // For JWT, logout is handled on client side by removing token
+      // Here we can add token blacklisting logic if needed
+
+      return this.sendSuccessResponse(res, "Logout successful");
     } catch (error) {
-      next(error);
-    }
-  }
-
-  async getProfile(req, res, next) {
-    try {
-      const userId = req.user.userId;
-      const user = await this.service.findById(userId);
-
-      if (!user) {
-        return ResponseHelper.notFound(res, "User not found");
-      }
-
-      return ResponseHelper.success(
+      return this.sendErrorResponse(
         res,
-        user,
-        "Profile retrieved successfully"
+        error.message,
+        error.statusCode || 500
       );
-    } catch (error) {
-      next(error);
     }
-  }
+  };
 
-  async updateProfile(req, res, next) {
+  getProfile = async (req, res) => {
     try {
-      const userId = req.user.userId;
-      const updateData = req.body;
+      const userId = req.user.id;
 
-      // Don't allow password update through this endpoint
-      delete updateData.password;
+      const user = await this.authService.getProfile(userId);
 
-      const user = await this.service.update(userId, updateData);
-
-      return ResponseHelper.success(res, user, "Profile updated successfully");
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async changePassword(req, res, next) {
-    try {
-      const userId = req.user.userId;
-      const { currentPassword, newPassword } = req.body;
-
-      if (!currentPassword || !newPassword) {
-        return ResponseHelper.badRequest(
-          res,
-          "Current password and new password are required"
-        );
-      }
-
-      if (newPassword.length < 6) {
-        return ResponseHelper.badRequest(
-          res,
-          "New password must be at least 6 characters long"
-        );
-      }
-
-      const result = await this.service.changePassword(
-        userId,
-        currentPassword,
-        newPassword
-      );
-
-      return ResponseHelper.success(
+      return this.sendSuccessResponse(
         res,
-        result,
-        "Password changed successfully"
+        "Profile retrieved successfully",
+        user
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 }
 
-// Export individual functions for routes
-const controller = new AuthController();
+const authController = new AuthController();
 
-export const register = (req, res, next) => controller.register(req, res, next);
-
-export const login = (req, res, next) => controller.login(req, res, next);
-
-export const refreshToken = (req, res, next) =>
-  controller.refreshToken(req, res, next);
-
-export const logout = (req, res, next) => controller.logout(req, res, next);
-
-export const getProfile = (req, res, next) =>
-  controller.getProfile(req, res, next);
-
-export const updateProfile = (req, res, next) =>
-  controller.updateProfile(req, res, next);
-
-export const changePassword = (req, res, next) =>
-  controller.changePassword(req, res, next);
+export const { register, login, logout, getProfile } = authController;

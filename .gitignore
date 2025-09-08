@@ -1,0 +1,126 @@
+# === NODE.JS ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# === ENVIRONMENT VARIABLES ===
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+
+# === BUILD OUTPUT ===
+dist/
+build/
+.next/
+out/
+
+# === LOGS ===
+logs/
+*.log
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# === RUNTIME DATA ===
+.grunt
+lib-cov
+coverage/
+.nyc_output
+.cache
+.parcel-cache
+
+# === DEPENDENCY DIRECTORIES ===
+jspm_packages/
+bower_components/
+
+# === TYPESCRIPT ===
+*.tsbuildinfo
+
+# === OPTIONAL NPM CACHE ===
+.npm
+.eslintcache
+
+# === OPTIONAL REPL HISTORY ===
+.node_repl_history
+
+# === OUTPUT OF 'NPM PACK' ===
+*.tgz
+
+# === YARN INTEGRITY FILE ===
+.yarn-integrity
+
+# === UPLOADS & MEDIA FILES ===
+public/uploads/*
+!public/uploads/.gitkeep
+public/media/*
+!public/media/.gitkeep
+
+# === DATABASE ===
+*.sqlite
+*.sqlite3
+*.db
+
+# === DRIZZLE MIGRATIONS (optional) ===
+# drizzle/migrations/*.sql
+# drizzle/migrations/meta/*.json
+
+# === EDITOR DIRECTORIES AND FILES ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS GENERATED FILES ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# === TEMPORARY FILES ===
+tmp/
+temp/
+*.tmp
+*.temp
+
+# === PM2 ===
+ecosystem.config.js
+.pm2
+
+# === DOCKER ===
+docker-compose.override.yml
+
+# === SSL CERTIFICATES ===
+*.pem
+*.key
+*.crt
+*.cert
+
+# === BACKUP FILES ===
+*.backup
+*.bak
+*.old
+
+# === TESTING ===
+.jest/
+test-results/
+coverage/
+
+# === PACKAGE LOCK (choose one) ===
+# package-lock.json  # uncomment if using yarn
+# yarn.lock          # uncomment if using npm
+
+# === CUSTOM APP SPECIFIC ===
+public/uploads/tasks/*
+!public/uploads/tasks/.gitkeep
+scripts/backup/
+scripts/temp/

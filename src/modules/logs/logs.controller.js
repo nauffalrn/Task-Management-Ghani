@@ -1,72 +1,210 @@
 import { BaseController } from "../../common/controller/base.controller.js";
 import { LogsService } from "./logs.service.js";
-import { ResponseHelper } from "../../common/utils/response.helper.js";
 
-export class LogsController extends BaseController {
+class LogsController extends BaseController {
   constructor() {
-    const logsService = new LogsService();
-    super(logsService, "Log");
+    super();
+    this.logsService = new LogsService();
   }
 
-  async getAllLogs(req, res, next) {
+  getAllLogs = async (req, res) => {
     try {
-      const { workspaceId, userId, taskId, action } = req.query;
+      const {
+        page = 1,
+        limit = 10,
+        action,
+        userId,
+        workspaceId,
+        dateFrom,
+        dateTo,
+      } = req.query;
 
-      const filters = {};
-      if (workspaceId) filters.workspaceId = parseInt(workspaceId);
-      if (userId) filters.userId = parseInt(userId);
-      if (taskId) filters.taskId = parseInt(taskId);
-      if (action) filters.action = action;
+      const result = await this.logsService.getAllLogs({
+        page: parseInt(page),
+        limit: parseInt(limit),
+        action,
+        userId: userId ? parseInt(userId) : undefined,
+        workspaceId: workspaceId ? parseInt(workspaceId) : undefined,
+        dateFrom,
+        dateTo,
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
 
-      const logs = await this.service.getAllLogs(req.user, filters);
-
-      return ResponseHelper.success(res, logs, "Logs retrieved successfully");
+      return this.sendSuccessResponse(
+        res,
+        "Activity logs retrieved successfully",
+        result.data,
+        result.meta
+      );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  async getWorkspaceLogs(req, res, next) {
+  getLogById = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const log = await this.logsService.getLogById(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(res, "Log retrieved successfully", log);
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  getWorkspaceLogs = async (req, res) => {
     try {
       const { workspaceId } = req.params;
-      const logs = await this.service.getWorkspaceLogs(
-        parseInt(workspaceId),
-        req.user
-      );
+      const { page = 1, limit = 10, action, dateFrom, dateTo } = req.query;
 
-      return ResponseHelper.success(
+      const result = await this.logsService.getWorkspaceLogs(workspaceId, {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        action,
+        dateFrom,
+        dateTo,
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
         res,
-        logs,
-        "Workspace logs retrieved successfully"
+        "Workspace activity logs retrieved successfully",
+        result.data,
+        result.meta
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  // Override create to add user context
-  async create(req, res, next) {
+  getTaskLogs = async (req, res) => {
     try {
-      const logData = {
-        ...req.body,
-        userId: req.user.userId, // From auth middleware
-      };
+      const { taskId } = req.params;
+      const { page = 1, limit = 10 } = req.query;
 
-      const result = await this.service.create(logData);
-      return ResponseHelper.created(res, result, "Log created successfully");
+      const result = await this.logsService.getTaskLogs(taskId, {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "Task activity logs retrieved successfully",
+        result.data,
+        result.meta
+      );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
+
+  getUserLogs = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { page = 1, limit = 10, action, dateFrom, dateTo } = req.query;
+
+      const result = await this.logsService.getUserLogs(userId, {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        action,
+        dateFrom,
+        dateTo,
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "User activity logs retrieved successfully",
+        result.data,
+        result.meta
+      );
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  createLog = async (req, res) => {
+    try {
+      const logData = req.body;
+
+      const log = await this.logsService.createLog(logData, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "Log created successfully",
+        log,
+        null,
+        201
+      );
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  deleteLog = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      await this.logsService.deleteLog(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(res, "Log deleted successfully");
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
 }
 
-// Export individual functions for routes
-const controller = new LogsController();
+const logsController = new LogsController();
 
-export const getLogs = (req, res, next) =>
-  controller.getAllLogs(req, res, next);
-
-export const getWorkspaceLogs = (req, res, next) =>
-  controller.getWorkspaceLogs(req, res, next);
-
-export const createLog = (req, res, next) => controller.create(req, res, next);
+export const {
+  getAllLogs,
+  getLogById,
+  getWorkspaceLogs,
+  getTaskLogs,
+  getUserLogs,
+  createLog,
+  deleteLog,
+} = logsController;

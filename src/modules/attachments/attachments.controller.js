@@ -1,104 +1,140 @@
 import { BaseController } from "../../common/controller/base.controller.js";
 import { AttachmentsService } from "./attachments.service.js";
-import { ResponseHelper } from "../../common/utils/response.helper.js";
-import fs from "fs";
 
-export class AttachmentsController extends BaseController {
+class AttachmentsController extends BaseController {
   constructor() {
-    const attachmentsService = new AttachmentsService();
-    super(attachmentsService, "Attachment");
+    super();
+    this.attachmentsService = new AttachmentsService();
   }
 
-  async getTaskAttachments(req, res, next) {
+  getTaskAttachments = async (req, res) => {
     try {
       const { taskId } = req.params;
-      const attachments = await this.service.getTaskAttachments(
-        parseInt(taskId)
+
+      const attachments = await this.attachmentsService.getTaskAttachments(
+        taskId,
+        {
+          requesterId: req.user.id,
+          requesterRole: req.user.role,
+        }
       );
 
-      return ResponseHelper.success(
+      return this.sendSuccessResponse(
         res,
-        attachments,
-        "Task attachments retrieved successfully"
+        "Task attachments retrieved successfully",
+        attachments
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  async createAttachment(req, res, next) {
+  getAttachmentById = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const attachment = await this.attachmentsService.getAttachmentById(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "Attachment retrieved successfully",
+        attachment
+      );
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  uploadAttachment = async (req, res) => {
     try {
       const { taskId } = req.params;
       const file = req.file;
-      const userId = req.user.userId;
 
-      const attachment = await this.service.uploadFile(
+      if (!file) {
+        return this.sendErrorResponse(res, "No file uploaded", 400);
+      }
+
+      const attachment = await this.attachmentsService.uploadAttachment(
+        taskId,
         file,
-        parseInt(taskId),
-        userId
+        {
+          requesterId: req.user.id,
+          requesterRole: req.user.role,
+        }
       );
 
-      return ResponseHelper.created(
+      return this.sendSuccessResponse(
         res,
+        "File uploaded successfully",
         attachment,
-        "File uploaded successfully"
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async deleteAttachment(req, res, next) {
-    try {
-      const { id } = req.params;
-      const userId = req.user.userId;
-
-      await this.service.deleteAttachment(parseInt(id), userId);
-
-      return ResponseHelper.success(
-        res,
         null,
-        "Attachment deleted successfully"
+        201
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  async downloadAttachment(req, res, next) {
+  downloadAttachment = async (req, res) => {
     try {
       const { id } = req.params;
-      const attachment = await this.service.getById(parseInt(id));
 
-      if (!attachment) {
-        return ResponseHelper.notFound(res, "Attachment not found");
-      }
+      const fileInfo = await this.attachmentsService.downloadAttachment(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
 
-      if (!fs.existsSync(attachment.filePath)) {
-        return ResponseHelper.notFound(res, "File not found on server");
-      }
-
-      res.download(attachment.filePath, attachment.originalName);
+      res.download(fileInfo.path, fileInfo.originalName);
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
+
+  deleteAttachment = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      await this.attachmentsService.deleteAttachment(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(res, "Attachment deleted successfully");
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
 }
 
-// Export individual functions for routes
-const controller = new AttachmentsController();
+const attachmentsController = new AttachmentsController();
 
-export const getTaskAttachments = (req, res, next) =>
-  controller.getTaskAttachments(req, res, next);
-
-export const getAttachmentById = (req, res, next) =>
-  controller.getById(req, res, next);
-
-export const createAttachment = (req, res, next) =>
-  controller.createAttachment(req, res, next);
-
-export const deleteAttachment = (req, res, next) =>
-  controller.deleteAttachment(req, res, next);
-
-export const downloadAttachment = (req, res, next) =>
-  controller.downloadAttachment(req, res, next);
+export const {
+  getTaskAttachments,
+  getAttachmentById,
+  uploadAttachment,
+  downloadAttachment,
+  deleteAttachment,
+} = attachmentsController;

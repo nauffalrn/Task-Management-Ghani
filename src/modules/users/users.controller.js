@@ -1,78 +1,154 @@
 import { BaseController } from "../../common/controller/base.controller.js";
 import { UsersService } from "./users.service.js";
-import { ResponseHelper } from "../../common/utils/response.helper.js";
 
-export class UsersController extends BaseController {
+class UsersController extends BaseController {
   constructor() {
-    const usersService = new UsersService();
-    super(usersService, "User");
+    super();
+    this.usersService = new UsersService();
   }
 
-  async search(req, res, next) {
+  getAllUsers = async (req, res) => {
     try {
-      const { q: query, page, limit } = req.query;
+      const { page = 1, limit = 10, role, search } = req.query;
 
-      if (!query) {
-        return ResponseHelper.badRequest(res, "Search query is required");
-      }
+      const result = await this.usersService.getAllUsers({
+        page: parseInt(page),
+        limit: parseInt(limit),
+        role,
+        search,
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
 
-      const options = {
-        page: parseInt(page) || 1,
-        limit: parseInt(limit) || 10,
-      };
-
-      const users = await this.service.search(query, options);
-
-      return ResponseHelper.success(
+      return this.sendSuccessResponse(
         res,
-        users,
-        "Users search completed successfully"
+        "Users retrieved successfully",
+        result.data,
+        result.meta
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  // Override create to handle password hashing
-  async create(req, res, next) {
-    try {
-      const userData = req.body;
-      const user = await this.service.create(userData);
-
-      return ResponseHelper.created(res, user, "User created successfully");
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Override update to handle password hashing
-  async update(req, res, next) {
+  getUserById = async (req, res) => {
     try {
       const { id } = req.params;
+
+      const user = await this.usersService.getUserById(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(res, "User retrieved successfully", user);
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  createUser = async (req, res) => {
+    try {
       const userData = req.body;
 
-      const user = await this.service.update(parseInt(id), userData);
+      const user = await this.usersService.createUser(userData, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
 
-      return ResponseHelper.success(res, user, "User updated successfully");
+      return this.sendSuccessResponse(
+        res,
+        "User created successfully",
+        user,
+        null,
+        201
+      );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
+
+  updateUser = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+
+      const user = await this.usersService.updateUser(id, updateData, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(res, "User updated successfully", user);
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  deleteUser = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      await this.usersService.deleteUser(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(res, "User deleted successfully");
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  getUserStats = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const stats = await this.usersService.getUserStats(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "User statistics retrieved successfully",
+        stats
+      );
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
 }
 
-// Export individual functions for routes
-const controller = new UsersController();
+const usersController = new UsersController();
 
-export const getUsers = (req, res, next) => controller.getAll(req, res, next);
-
-export const getUserById = (req, res, next) =>
-  controller.getById(req, res, next);
-
-export const createUser = (req, res, next) => controller.create(req, res, next);
-
-export const updateUser = (req, res, next) => controller.update(req, res, next);
-
-export const deleteUser = (req, res, next) => controller.delete(req, res, next);
-
-export const searchUsers = (req, res, next) =>
-  controller.search(req, res, next);
+export const {
+  getAllUsers,
+  getUserById,
+  createUser,
+  updateUser,
+  deleteUser,
+  getUserStats,
+} = usersController;

@@ -1,33 +1,57 @@
 import jwt from "jsonwebtoken";
-import { ResponseHelper } from "../utils/response.helper.js";
+import { AppError } from "../utils/appError.js";
+import { JWT_CONFIG } from "../constants/app.js";
+import { UsersRepository } from "../../modules/users/users.repo.js";
 
-export const authenticateToken = async (req, res, next) => {
+const usersRepo = new UsersRepository();
+
+export const authenticate = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
+    let token;
+
+    // Get token from header
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    }
 
     if (!token) {
-      return ResponseHelper.unauthorized(res, "Access token is required");
+      throw AppError.unauthorized("Access token is required");
     }
 
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_CONFIG.SECRET);
 
-    // Add user info to request object
-    req.user = {
-      userId: decoded.userId,
-      email: decoded.email,
-      role: decoded.role,
-    };
+    // Get user from token
+    const user = await usersRepo.findById(decoded.id);
+    if (!user) {
+      throw AppError.unauthorized("User no longer exists");
+    }
 
+    // Grant access to protected route
+    req.user = user;
     next();
   } catch (error) {
     if (error.name === "JsonWebTokenError") {
-      return ResponseHelper.unauthorized(res, "Invalid access token");
+      return next(AppError.unauthorized("Invalid token"));
     }
     if (error.name === "TokenExpiredError") {
-      return ResponseHelper.unauthorized(res, "Access token expired");
+      return next(AppError.unauthorized("Token expired"));
     }
-    return ResponseHelper.error(res, "Authentication failed", 500);
+    next(error);
   }
 };
+
+export const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      throw AppError.forbidden("Insufficient permissions for this action");
+    }
+    next();
+  };
+};
+
+// Fix auth routes import
+export const authenticateToken = authenticate;

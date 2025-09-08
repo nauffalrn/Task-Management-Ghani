@@ -1,139 +1,168 @@
 import { BaseController } from "../../common/controller/base.controller.js";
 import { WorkspacesService } from "./workspaces.service.js";
-import { ResponseHelper } from "../../common/utils/response.helper.js";
 
-export class WorkspacesController extends BaseController {
+class WorkspacesController extends BaseController {
   constructor() {
-    const workspacesService = new WorkspacesService();
-    super(workspacesService, "Workspace");
+    super();
+    this.workspacesService = new WorkspacesService();
   }
 
-  async getWorkspaces(req, res, next) {
+  getAllWorkspaces = async (req, res) => {
     try {
-      const { search } = req.query;
-      const workspaces = await this.service.getAllWorkspaces(req.user, search);
+      const { page = 1, limit = 10, search } = req.query;
 
-      return ResponseHelper.success(
+      const result = await this.workspacesService.getAllWorkspaces({
+        page: parseInt(page),
+        limit: parseInt(limit),
+        search,
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
         res,
-        workspaces,
-        "Workspaces retrieved successfully"
+        "Workspaces retrieved successfully",
+        result.data,
+        result.meta
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  // Override getById to use custom method
-  async getById(req, res, next) {
+  getWorkspaceById = async (req, res) => {
     try {
       const { id } = req.params;
-      const workspace = await this.service.getById(parseInt(id), req.user);
 
-      return ResponseHelper.success(
+      const workspace = await this.workspacesService.getWorkspaceById(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
         res,
-        workspace,
-        "Workspace retrieved successfully"
+        "Workspace retrieved successfully",
+        workspace
       );
     } catch (error) {
-      next(error);
-    }
-  }
-
-  // Override create to add user context
-  async create(req, res, next) {
-    try {
-      const workspace = await this.service.create(req.body, req.user);
-
-      return ResponseHelper.created(
+      return this.sendErrorResponse(
         res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  createWorkspace = async (req, res) => {
+    try {
+      const workspaceData = req.body;
+
+      const workspace = await this.workspacesService.createWorkspace(
+        workspaceData,
+        {
+          requesterId: req.user.id,
+          requesterRole: req.user.role,
+        }
+      );
+
+      return this.sendSuccessResponse(
+        res,
+        "Workspace created successfully",
         workspace,
-        "Workspace created successfully"
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Override update to add user context
-  async update(req, res, next) {
-    try {
-      const { id } = req.params;
-      const workspace = await this.service.update(
-        parseInt(id),
-        req.body,
-        req.user
-      );
-
-      if (!workspace) {
-        return ResponseHelper.notFound(res, "Workspace not found");
-      }
-
-      return ResponseHelper.success(
-        res,
-        workspace,
-        "Workspace updated successfully"
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Override delete to add user context
-  async delete(req, res, next) {
-    try {
-      const { id } = req.params;
-      const workspace = await this.service.delete(parseInt(id), req.user);
-
-      if (!workspace) {
-        return ResponseHelper.notFound(res, "Workspace not found");
-      }
-
-      return ResponseHelper.success(
-        res,
         null,
-        "Workspace deleted successfully"
+        201
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  async getWorkspaceStats(req, res, next) {
+  updateWorkspace = async (req, res) => {
     try {
       const { id } = req.params;
-      const stats = await this.service.getWorkspaceStats(
-        parseInt(id),
-        req.user
+      const updateData = req.body;
+
+      const workspace = await this.workspacesService.updateWorkspace(
+        id,
+        updateData,
+        {
+          requesterId: req.user.id,
+          requesterRole: req.user.role,
+        }
       );
 
-      return ResponseHelper.success(
+      return this.sendSuccessResponse(
         res,
-        stats,
-        "Workspace statistics retrieved successfully"
+        "Workspace updated successfully",
+        workspace
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
+
+  deleteWorkspace = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      await this.workspacesService.deleteWorkspace(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(res, "Workspace deleted successfully");
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  getWorkspaceStats = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const stats = await this.workspacesService.getWorkspaceStats(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "Workspace statistics retrieved successfully",
+        stats
+      );
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
 }
 
-// Export individual functions for routes
-const controller = new WorkspacesController();
+const workspacesController = new WorkspacesController();
 
-export const getWorkspaces = (req, res, next) =>
-  controller.getWorkspaces(req, res, next);
-
-export const getWorkspaceById = (req, res, next) =>
-  controller.getById(req, res, next);
-
-export const createWorkspace = (req, res, next) =>
-  controller.create(req, res, next);
-
-export const updateWorkspace = (req, res, next) =>
-  controller.update(req, res, next);
-
-export const deleteWorkspace = (req, res, next) =>
-  controller.delete(req, res, next);
-
-export const getWorkspaceStats = (req, res, next) =>
-  controller.getWorkspaceStats(req, res, next);
+export const {
+  getAllWorkspaces,
+  getWorkspaceById,
+  createWorkspace,
+  updateWorkspace,
+  deleteWorkspace,
+  getWorkspaceStats,
+} = workspacesController;

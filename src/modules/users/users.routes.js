@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { authenticateToken } from "../../common/middlewares/auth.js";
 import {
-  getUsers,
+  getAllUsers,
   getUserById,
   createUser,
   updateUser,
   deleteUser,
-  searchUsers,
+  getUserStats,
 } from "./users.controller.js";
 
 const router = Router();
@@ -34,95 +34,47 @@ router.use(authenticateToken);
  *         name: page
  *         schema:
  *           type: integer
+ *           minimum: 1
  *           default: 1
  *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
+ *           minimum: 1
+ *           maximum: 100
  *           default: 10
- *         description: Items per page
+ *         description: Number of items per page
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           $ref: '#/components/schemas/UserRole'
+ *         description: Filter by user role
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by name or email
  *     responses:
  *       200:
  *         description: Users retrieved successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: Users retrieved successfully
- *                 data:
- *                   type: object
+ *               allOf:
+ *                 - $ref: '#/components/schemas/PaginatedResponse'
+ *                 - type: object
  *                   properties:
- *                     users:
+ *                     data:
  *                       type: array
  *                       items:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: integer
- *                           name:
- *                             type: string
- *                           email:
- *                             type: string
- *                           role:
- *                             type: string
- *                           createdAt:
- *                             type: string
- *                             format: date-time
- *                     pagination:
- *                       type: object
- *                       properties:
- *                         page:
- *                           type: integer
- *                         limit:
- *                           type: integer
- *                         total:
- *                           type: integer
- *                         totalPages:
- *                           type: integer
+ *                         $ref: '#/components/schemas/User'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  */
-router.get("/", getUsers);
-
-/**
- * @swagger
- * /users/search:
- *   get:
- *     summary: Search users by name or email
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: q
- *         required: true
- *         schema:
- *           type: string
- *         description: Search query (name or email)
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: Page number
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *         description: Items per page
- *     responses:
- *       200:
- *         description: Search completed successfully
- *       400:
- *         description: Search query is required
- */
-router.get("/search", searchUsers);
+router.get("/", getAllUsers);
 
 /**
  * @swagger
@@ -142,8 +94,25 @@ router.get("/search", searchUsers);
  *     responses:
  *       200:
  *         description: User retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: User retrieved successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  *       404:
- *         description: User not found
+ *         $ref: '#/components/responses/NotFoundError'
  */
 router.get("/:id", getUserById);
 
@@ -151,7 +120,7 @@ router.get("/:id", getUserById);
  * @swagger
  * /users:
  *   post:
- *     summary: Create a new user
+ *     summary: Create a new user (Admin only)
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -160,35 +129,35 @@ router.get("/:id", getUserById);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - name
- *               - email
- *               - password
- *               - role
- *             properties:
- *               name:
- *                 type: string
- *                 description: User's full name
- *               email:
- *                 type: string
- *                 format: email
- *                 description: User's email address
- *               password:
- *                 type: string
- *                 minLength: 6
- *                 description: User's password
- *               role:
- *                 type: string
- *                 enum: [MANAGER, HUMAS_HEAD, ACARA_HEAD, KONSUMSI_HEAD, DEKORASI_HEAD, KEAMANAN_HEAD, HUMAS_STAFF, ACARA_STAFF, KONSUMSI_STAFF, DEKORASI_STAFF, KEAMANAN_STAFF]
- *                 description: User's role in the system
+ *             $ref: '#/components/schemas/CreateUserRequest'
  *     responses:
  *       201:
  *         description: User created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: User created successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
  *       400:
- *         description: Invalid input data
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  *       409:
- *         description: User already exists
+ *         description: Email already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post("/", createUser);
 
@@ -196,7 +165,7 @@ router.post("/", createUser);
  * @swagger
  * /users/{id}:
  *   put:
- *     summary: Update user by ID
+ *     summary: Update user (Admin or own profile)
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -212,30 +181,31 @@ router.post("/", createUser);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *                 description: User's full name
- *               email:
- *                 type: string
- *                 format: email
- *                 description: User's email address
- *               password:
- *                 type: string
- *                 minLength: 6
- *                 description: User's password (optional)
- *               role:
- *                 type: string
- *                 enum: [MANAGER, HUMAS_HEAD, ACARA_HEAD, KONSUMSI_HEAD, DEKORASI_HEAD, KEAMANAN_HEAD, HUMAS_STAFF, ACARA_STAFF, KONSUMSI_STAFF, DEKORASI_STAFF, KEAMANAN_STAFF]
- *                 description: User's role in the system
+ *             $ref: '#/components/schemas/UpdateUserRequest'
  *     responses:
  *       200:
  *         description: User updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: User updated successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  *       404:
- *         description: User not found
- *       409:
- *         description: Email already in use
+ *         $ref: '#/components/responses/NotFoundError'
  */
 router.put("/:id", updateUser);
 
@@ -243,7 +213,7 @@ router.put("/:id", updateUser);
  * @swagger
  * /users/{id}:
  *   delete:
- *     summary: Delete user by ID
+ *     summary: Delete user (Admin only)
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -256,10 +226,54 @@ router.put("/:id", updateUser);
  *         description: User ID
  *     responses:
  *       200:
- *         description: User deleted successfully
+ *         $ref: '#/components/responses/SuccessResponse'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  *       404:
- *         description: User not found
+ *         $ref: '#/components/responses/NotFoundError'
  */
 router.delete("/:id", deleteUser);
+
+/**
+ * @swagger
+ * /users/{id}/stats:
+ *   get:
+ *     summary: Get user statistics
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: User statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: User statistics retrieved successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/UserStats'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
+ */
+router.get("/:id/stats", getUserStats);
 
 export default router;

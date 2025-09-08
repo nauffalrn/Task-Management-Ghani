@@ -1,89 +1,145 @@
 import { BaseController } from "../../common/controller/base.controller.js";
 import { MembersService } from "./members.service.js";
-import { ResponseHelper } from "../../common/utils/response.helper.js";
 
-export class MembersController extends BaseController {
+class MembersController extends BaseController {
   constructor() {
-    const membersService = new MembersService();
-    super(membersService, "Member");
+    super();
+    this.membersService = new MembersService();
   }
 
-  async getWorkspaceMembers(req, res, next) {
+  getWorkspaceMembers = async (req, res) => {
     try {
       const { workspaceId } = req.params;
-      const members = await this.service.getWorkspaceMembers(
-        parseInt(workspaceId),
-        req.user
+      const { page = 1, limit = 10, role } = req.query;
+
+      const result = await this.membersService.getWorkspaceMembers(
+        workspaceId,
+        {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          role,
+          requesterId: req.user.id,
+          requesterRole: req.user.role,
+        }
       );
 
-      return ResponseHelper.success(
+      return this.sendSuccessResponse(
         res,
-        members,
-        "Workspace members retrieved successfully"
+        "Workspace members retrieved successfully",
+        result.data,
+        result.meta
       );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  async addMember(req, res, next) {
+  getMemberById = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const member = await this.membersService.getMemberById(id, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "Member retrieved successfully",
+        member
+      );
+    } catch (error) {
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
+    }
+  };
+
+  addMember = async (req, res) => {
     try {
       const { workspaceId } = req.params;
-      const member = await this.service.addMember(
-        parseInt(workspaceId),
-        req.body,
-        req.user
+      const { userId } = req.body;
+
+      const member = await this.membersService.addMember(workspaceId, userId, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "Member added to workspace successfully",
+        member,
+        null,
+        201
       );
-
-      return ResponseHelper.created(res, member, "Member added successfully");
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  async updateMember(req, res, next) {
+  removeMember = async (req, res) => {
     try {
       const { workspaceId, userId } = req.params;
-      const member = await this.service.updateMember(
-        parseInt(workspaceId),
-        parseInt(userId),
-        req.body,
-        req.user
+
+      await this.membersService.removeMember(workspaceId, userId, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "Member removed from workspace successfully"
       );
-
-      return ResponseHelper.success(res, member, "Member updated successfully");
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 
-  async removeMember(req, res, next) {
+  updateMemberRole = async (req, res) => {
     try {
-      const { workspaceId, userId } = req.params;
-      await this.service.removeMember(
-        parseInt(workspaceId),
-        parseInt(userId),
-        req.user
-      );
+      const { id } = req.params;
+      const { role } = req.body;
 
-      return ResponseHelper.success(res, null, "Member removed successfully");
+      const member = await this.membersService.updateMemberRole(id, role, {
+        requesterId: req.user.id,
+        requesterRole: req.user.role,
+      });
+
+      return this.sendSuccessResponse(
+        res,
+        "Member role updated successfully",
+        member
+      );
     } catch (error) {
-      next(error);
+      return this.sendErrorResponse(
+        res,
+        error.message,
+        error.statusCode || 500
+      );
     }
-  }
+  };
 }
 
-// Export individual functions for routes
-const controller = new MembersController();
+const membersController = new MembersController();
 
-export const getWorkspaceMembers = (req, res, next) =>
-  controller.getWorkspaceMembers(req, res, next);
-
-export const addMember = (req, res, next) =>
-  controller.addMember(req, res, next);
-
-export const updateMember = (req, res, next) =>
-  controller.updateMember(req, res, next);
-
-export const removeMember = (req, res, next) =>
-  controller.removeMember(req, res, next);
+export const {
+  getWorkspaceMembers,
+  getMemberById,
+  addMember,
+  removeMember,
+  updateMemberRole,
+} = membersController;

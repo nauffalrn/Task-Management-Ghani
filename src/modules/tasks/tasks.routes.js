@@ -1,214 +1,106 @@
 import { Router } from "express";
-import { TasksController } from "./tasks.controller.js";
 import { authenticateToken } from "../../common/middlewares/auth.js";
+import {
+  getAllTasks,
+  getTaskById,
+  createTask,
+  updateTask,
+  deleteTask,
+  getTasksByWorkspace,
+  getTasksByAssignee,
+  updateTaskStatus,
+} from "./tasks.controller.js";
 
 const router = Router();
-const tasksController = new TasksController();
-
-/**
- * @swagger
- * tags:
- *   name: Tasks
- *   description: Task management endpoints within workspaces
- */
 
 // All routes require authentication
 router.use(authenticateToken);
 
 /**
  * @swagger
+ * tags:
+ *   name: Tasks
+ *   description: Task management endpoints
+ */
+
+/**
+ * @swagger
  * /tasks:
  *   get:
- *     summary: Get all tasks
- *     description: Retrieve all tasks across workspaces (admin view for owners/managers)
+ *     summary: Get all tasks (with filters)
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [todo, in_progress, done]
- *         description: Filter tasks by status
- *         example: in_progress
- *       - in: query
- *         name: assignedTo
+ *         name: page
  *         schema:
  *           type: integer
- *         description: Filter tasks by assigned user ID
- *         example: 6
- *       - in: query
- *         name: workspaceId
- *         schema:
- *           type: integer
- *         description: Filter tasks by workspace ID
- *         example: 1
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           minimum: 1
  *           maximum: 100
- *           default: 20
- *         description: Number of tasks to return
- *         example: 20
+ *           default: 10
+ *         description: Number of items per page
  *       - in: query
- *         name: offset
+ *         name: workspaceId
  *         schema:
  *           type: integer
- *           minimum: 0
- *           default: 0
- *         description: Number of tasks to skip
- *         example: 0
+ *         description: Filter by workspace ID
+ *       - in: query
+ *         name: assigneeId
+ *         schema:
+ *           type: integer
+ *         description: Filter by assignee ID
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           $ref: '#/components/schemas/TaskStatus'
+ *         description: Filter by task status
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           $ref: '#/components/schemas/TaskPriority'
+ *         description: Filter by task priority
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by task title or description
+ *       - in: query
+ *         name: overdue
+ *         schema:
+ *           type: boolean
+ *         description: Filter overdue tasks only
  *     responses:
  *       200:
  *         description: Tasks retrieved successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Tasks retrieved successfully
- *                 data:
- *                   type: object
+ *               allOf:
+ *                 - $ref: '#/components/schemas/PaginatedResponse'
+ *                 - type: object
  *                   properties:
- *                     tasks:
+ *                     data:
  *                       type: array
  *                       items:
- *                         allOf:
- *                           - $ref: '#/components/schemas/Task'
- *                           - type: object
- *                             properties:
- *                               workspace:
- *                                 $ref: '#/components/schemas/Workspace'
- *                               assignedUser:
- *                                 $ref: '#/components/schemas/User'
- *                               creator:
- *                                 $ref: '#/components/schemas/User'
- *                     pagination:
- *                       type: object
- *                       properties:
- *                         total:
- *                           type: integer
- *                           example: 50
- *                         limit:
- *                           type: integer
- *                           example: 20
- *                         offset:
- *                           type: integer
- *                           example: 0
- *                         hasMore:
- *                           type: boolean
- *                           example: true
+ *                         $ref: '#/components/schemas/Task'
  *       401:
- *         description: Unauthorized access
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *   post:
- *     summary: Create a new task
- *     description: Create a new task within a workspace
- *     tags: [Tasks]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - workspaceId
- *               - title
- *               - description
- *             properties:
- *               workspaceId:
- *                 type: integer
- *                 description: ID of the workspace where task will be created
- *                 example: 1
- *                 minimum: 1
- *               title:
- *                 type: string
- *                 description: Brief title for the task
- *                 example: Fix login authentication bug
- *                 minLength: 3
- *                 maxLength: 200
- *               description:
- *                 type: string
- *                 description: Detailed description of the task
- *                 example: Fix the JWT authentication issue that prevents users from logging in after token expiration
- *                 minLength: 10
- *                 maxLength: 1000
- *               assignedTo:
- *                 type: integer
- *                 description: ID of the user to assign this task to
- *                 example: 6
- *                 minimum: 1
- *               dueDate:
- *                 type: string
- *                 format: date-time
- *                 description: Due date for task completion
- *                 example: 2024-12-31T23:59:59.000Z
- *               priority:
- *                 type: string
- *                 enum: [low, medium, high, urgent]
- *                 description: Priority level of the task
- *                 example: high
- *                 default: medium
- *     responses:
- *       201:
- *         description: Task created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Task created successfully
- *                 data:
- *                   type: object
- *                   properties:
- *                     task:
- *                       $ref: '#/components/schemas/Task'
- *       400:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       404:
- *         description: Workspace not found or user not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       403:
- *         description: Access denied - not a member of workspace
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/UnauthorizedError'
  */
-router.get("/", tasksController.getAll.bind(tasksController));
-router.post("/", tasksController.create.bind(tasksController));
+router.get("/", getAllTasks);
 
 /**
  * @swagger
  * /tasks/{id}:
  *   get:
  *     summary: Get task by ID
- *     description: Retrieve detailed information about a specific task
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
@@ -218,9 +110,7 @@ router.post("/", tasksController.create.bind(tasksController));
  *         required: true
  *         schema:
  *           type: integer
- *           minimum: 1
- *         description: Unique identifier of the task
- *         example: 1
+ *         description: Task ID
  *     responses:
  *       200:
  *         description: Task retrieved successfully
@@ -229,49 +119,67 @@ router.post("/", tasksController.create.bind(tasksController));
  *             schema:
  *               type: object
  *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
+ *                 status:
+ *                   type: string
+ *                   example: success
  *                 message:
  *                   type: string
  *                   example: Task retrieved successfully
  *                 data:
- *                   type: object
- *                   properties:
- *                     task:
- *                       allOf:
- *                         - $ref: '#/components/schemas/Task'
- *                         - type: object
- *                           properties:
- *                             workspace:
- *                               $ref: '#/components/schemas/Workspace'
- *                             assignedUser:
- *                               $ref: '#/components/schemas/User'
- *                             creator:
- *                               $ref: '#/components/schemas/User'
- *                             comments:
- *                               type: array
- *                               items:
- *                                 $ref: '#/components/schemas/Comment'
- *                             attachments:
- *                               type: array
- *                               items:
- *                                 $ref: '#/components/schemas/Attachment'
- *       404:
- *         description: Task not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *                   $ref: '#/components/schemas/Task'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
- *         description: Access denied - not a member of workspace
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
+ */
+router.get("/:id", getTaskById);
+
+/**
+ * @swagger
+ * /tasks:
+ *   post:
+ *     summary: Create a new task
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateTaskRequest'
+ *     responses:
+ *       201:
+ *         description: Task created successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Task created successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/Task'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ */
+router.post("/", createTask);
+
+/**
+ * @swagger
+ * /tasks/{id}:
  *   put:
  *     summary: Update task
- *     description: Update task information (title, description, due date, etc.)
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
@@ -281,76 +189,45 @@ router.post("/", tasksController.create.bind(tasksController));
  *         required: true
  *         schema:
  *           type: integer
- *           minimum: 1
- *         description: Unique identifier of the task to update
- *         example: 1
+ *         description: Task ID
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               title:
- *                 type: string
- *                 description: New task title
- *                 example: Fix login and registration authentication bugs
- *                 minLength: 3
- *                 maxLength: 200
- *               description:
- *                 type: string
- *                 description: New task description
- *                 example: Updated description with more details about the authentication issues
- *                 minLength: 10
- *                 maxLength: 1000
- *               dueDate:
- *                 type: string
- *                 format: date-time
- *                 description: New due date
- *                 example: 2024-12-31T23:59:59.000Z
- *               priority:
- *                 type: string
- *                 enum: [low, medium, high, urgent]
- *                 description: New priority level
- *                 example: urgent
- *               status:
- *                 type: string
- *                 enum: [todo, in_progress, done]
- *                 description: New task status
- *                 example: in_progress
- *               assignedTo:
- *                 type: integer
- *                 description: ID of user to assign task to
- *                 example: 7
- *                 minimum: 1
+ *             $ref: '#/components/schemas/UpdateTaskRequest'
  *     responses:
  *       200:
  *         description: Task updated successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Success'
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Task updated successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/Task'
  *       400:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       404:
- *         description: Task not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
- *         description: Access denied - insufficient permissions
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *   delete:
- *     summary: Delete task
- *     description: Permanently delete a task and all its associated data
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
+ */
+router.put("/:id", updateTask);
+
+/**
+ * @swagger
+ * /tasks/{id}/status:
+ *   patch:
+ *     summary: Update task status only
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
@@ -360,99 +237,76 @@ router.post("/", tasksController.create.bind(tasksController));
  *         required: true
  *         schema:
  *           type: integer
- *           minimum: 1
- *         description: Unique identifier of the task to delete
- *         example: 1
+ *         description: Task ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 $ref: '#/components/schemas/TaskStatus'
  *     responses:
  *       200:
- *         description: Task deleted successfully
+ *         description: Task status updated successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
+ *                 status:
+ *                   type: string
+ *                   example: success
  *                 message:
  *                   type: string
- *                   example: Task deleted successfully
- *       404:
- *         description: Task not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *                   example: Task status updated successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/Task'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
- *         description: Access denied - only task creator or workspace admin can delete
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
  */
-router.get("/:id", tasksController.getById.bind(tasksController));
-router.get(
-  "/:id/details",
-  tasksController.getTaskWithDetails.bind(tasksController)
-);
-router.put("/:id", tasksController.update.bind(tasksController));
-router.patch("/:id/status", tasksController.updateStatus.bind(tasksController));
-router.delete("/:id", tasksController.delete.bind(tasksController));
+router.patch("/:id/status", updateTaskStatus);
 
 /**
  * @swagger
- * /tasks/stats:
- *   get:
- *     summary: Get task statistics
- *     description: Retrieve statistics about tasks (e.g., count by status, priority)
+ * /tasks/{id}:
+ *   delete:
+ *     summary: Delete task
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Task ID
  *     responses:
  *       200:
- *         description: Task statistics retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Task statistics retrieved successfully
- *                 data:
- *                   type: object
- *                   properties:
- *                     totalTasks:
- *                       type: integer
- *                       example: 100
- *                     tasksByStatus:
- *                       type: object
- *                       additionalProperties:
- *                         type: integer
- *                         example: 25
- *                     tasksByPriority:
- *                       type: object
- *                       additionalProperties:
- *                         type: integer
- *                         example: 10
+ *         $ref: '#/components/responses/SuccessResponse'
  *       401:
- *         description: Unauthorized access
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
  */
-router.get("/stats", tasksController.getStats.bind(tasksController));
+router.delete("/:id", deleteTask);
 
 /**
  * @swagger
  * /tasks/workspace/{workspaceId}:
  *   get:
- *     summary: Get tasks by workspace
- *     description: Retrieve all tasks within a specific workspace
+ *     summary: Get all tasks in a workspace
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
@@ -462,55 +316,111 @@ router.get("/stats", tasksController.getStats.bind(tasksController));
  *         required: true
  *         schema:
  *           type: integer
+ *         description: Workspace ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
  *           minimum: 1
- *         description: ID of the workspace to filter tasks by
- *         example: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Number of items per page
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           $ref: '#/components/schemas/TaskStatus'
+ *         description: Filter by task status
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           $ref: '#/components/schemas/TaskPriority'
+ *         description: Filter by task priority
  *     responses:
  *       200:
- *         description: Tasks retrieved successfully for the workspace
+ *         description: Workspace tasks retrieved successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Tasks retrieved successfully for the workspace
- *                 data:
- *                   type: object
+ *               allOf:
+ *                 - $ref: '#/components/schemas/PaginatedResponse'
+ *                 - type: object
  *                   properties:
- *                     tasks:
+ *                     data:
  *                       type: array
  *                       items:
- *                         allOf:
- *                           - $ref: '#/components/schemas/Task'
- *                           - type: object
- *                             properties:
- *                               workspace:
- *                                 $ref: '#/components/schemas/Workspace'
- *                               assignedUser:
- *                                 $ref: '#/components/schemas/User'
- *                               creator:
- *                                 $ref: '#/components/schemas/User'
- *       404:
- *         description: Workspace not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *                         $ref: '#/components/schemas/Task'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
- *         description: Access denied - not a member of workspace
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
+ */
+router.get("/workspace/:workspaceId", getTasksByWorkspace);
+
+/**
+ * @swagger
+ * /tasks/assignee/{assigneeId}:
+ *   get:
+ *     summary: Get all tasks assigned to a user
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: assigneeId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Assignee user ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Number of items per page
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           $ref: '#/components/schemas/TaskStatus'
+ *         description: Filter by task status
+ *     responses:
+ *       200:
+ *         description: User tasks retrieved successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               allOf:
+ *                 - $ref: '#/components/schemas/PaginatedResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Task'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
  */
-router.get(
-  "/workspace/:workspaceId",
-  tasksController.getByWorkspace.bind(tasksController)
-);
+router.get("/assignee/:assigneeId", getTasksByAssignee);
 
 export default router;

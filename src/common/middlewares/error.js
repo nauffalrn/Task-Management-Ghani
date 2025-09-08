@@ -1,72 +1,102 @@
 import { ResponseHelper } from "../utils/response.helper.js";
 import { HTTP_STATUS } from "../constants/app.js";
+import { logger } from "../utils/logger.js";
+import { AppError } from "../utils/appError.js";
 
 export const errorHandler = (err, req, res, next) => {
-  console.error("Error:", err);
+  let error = { ...err };
+  error.message = err.message;
 
-  // Handle custom errors with statusCode
-  if (err.statusCode) {
-    return ResponseHelper.error(res, err.message, err.statusCode);
+  // Log error details
+  logger.error(`${err.name}: ${err.message}`, {
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    ip: req.ip,
+    userAgent: req.get("User-Agent"),
+    userId: req.user?.id || "anonymous",
+  });
+
+  // === MONGOOSE/DATABASE ERRORS ===
+  if (err.name === "CastError") {
+    const message = "Resource not found";
+    error = AppError.notFound(message);
   }
 
-  // Handle validation errors
+  if (err.code === 11000) {
+    const message = "Duplicate field value entered";
+    error = AppError.conflict(message);
+  }
+
   if (err.name === "ValidationError") {
-    return ResponseHelper.badRequest(
-      res,
-      "Validation error",
-      err.details || err.message
-    );
+    const message = Object.values(err.errors).map((val) => val.message);
+    error = AppError.badRequest(message.join(", "));
   }
 
-  // Handle JWT errors
+  // === JWT ERRORS ===
   if (err.name === "JsonWebTokenError") {
-    return ResponseHelper.unauthorized(res, "Invalid token");
+    const message = "Invalid token";
+    error = AppError.unauthorized(message);
   }
 
   if (err.name === "TokenExpiredError") {
-    return ResponseHelper.unauthorized(res, "Token expired");
+    const message = "Token expired";
+    error = AppError.unauthorized(message);
   }
 
-  // Handle database errors
+  // === DRIZZLE/POSTGRES ERRORS ===
+  if (err.name === "DrizzleQueryError") {
+    const message = "Database query error";
+    error = AppError.internalServer(message);
+  }
+
+  // PostgreSQL specific errors
   if (err.code === "23505") {
-    // PostgreSQL unique violation
-    return ResponseHelper.conflict(res, "Resource already exists");
+    // Unique constraint violation
+    const message = "Duplicate entry";
+    error = AppError.conflict(message);
   }
 
   if (err.code === "23503") {
-    // PostgreSQL foreign key violation
-    return ResponseHelper.badRequest(
-      res,
-      "Invalid reference to related resource"
-    );
+    // Foreign key constraint violation
+    const message = "Referenced record not found";
+    error = AppError.badRequest(message);
   }
 
   if (err.code === "23502") {
-    // PostgreSQL not null violation
-    return ResponseHelper.badRequest(res, "Required field is missing");
+    // Not null constraint violation
+    const message = "Required field missing";
+    error = AppError.badRequest(message);
   }
 
-  // Handle Multer errors
-  if (err.name === "MulterError") {
-    if (err.code === "LIMIT_FILE_SIZE") {
-      return ResponseHelper.badRequest(res, "File too large");
-    }
-    return ResponseHelper.badRequest(res, err.message);
+  // === MULTER UPLOAD ERRORS ===
+  if (err.code === "LIMIT_FILE_SIZE") {
+    const message = "File too large";
+    error = AppError.badRequest(message);
   }
 
-  // Default server error
-  const message =
-    process.env.NODE_ENV === "production"
-      ? "Internal server error"
-      : err.message;
+  if (err.code === "LIMIT_FILE_COUNT") {
+    const message = "Too many files";
+    error = AppError.badRequest(message);
+  }
 
-  return ResponseHelper.error(res, message, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  // === SEND ERROR RESPONSE ===
+  res.status(error.statusCode || 500).json({
+    status: error.status || "error",
+    message: error.message || "Internal server error",
+    ...(process.env.NODE_ENV === "development" && {
+      stack: err.stack,
+      error: err,
+    }),
+  });
 };
 
-export const notFoundHandler = (req, res) => {
-  ResponseHelper.notFound(res, "Route not found");
+export const notFoundHandler = (req, res, next) => {
+  const error = AppError.notFound(`Route ${req.originalUrl} not found`);
+  next(error);
 };
 
+// Async wrapper untuk handle async errors
 export const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
