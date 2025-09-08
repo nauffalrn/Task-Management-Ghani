@@ -1,13 +1,15 @@
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import path from "path";
 import { fileURLToPath } from "url";
 
 // Import middlewares
 import { errorHandler, notFoundHandler } from "./common/middlewares/error.js";
+
+// Import Swagger config
+import { specs, swaggerOptions } from "./config/swagger.js";
 
 // Import routes
 import authRoutes from "./modules/auth/auth.routes.js";
@@ -32,185 +34,18 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Serve static files
 app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
-app.use(
-  "/swagger-assets",
-  express.static(path.join(__dirname, "../public/swagger"))
-);
+app.use("/swagger", express.static(path.join(__dirname, "../public/swagger")));
 
-// Swagger configuration
-const swaggerOptions = {
-  definition: {
-    openapi: "3.0.0",
-    info: {
-      title: "Task Management API",
-      version: "1.0.0",
-      description:
-        "A comprehensive task management system API with role-based access control",
-      contact: {
-        name: "API Support",
-        email: "support@taskmanagement.com",
-      },
-    },
-    servers: [
-      {
-        url: `http://localhost:${process.env.PORT || 3000}/api`,
-        description: "Development server",
-      },
-      {
-        url: "https://api.taskmanagement.com/api",
-        description: "Production server",
-      },
-    ],
-    components: {
-      securitySchemes: {
-        bearerAuth: {
-          type: "http",
-          scheme: "bearer",
-          bearerFormat: "JWT",
-          description: "Enter JWT token in the format: Bearer <token>",
-        },
-      },
-      responses: {
-        UnauthorizedError: {
-          description: "Access token is missing or invalid",
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  status: {
-                    type: "string",
-                    example: "error",
-                  },
-                  message: {
-                    type: "string",
-                    example: "Unauthorized",
-                  },
-                },
-              },
-            },
-          },
-        },
-        ForbiddenError: {
-          description: "Insufficient permissions",
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  status: {
-                    type: "string",
-                    example: "error",
-                  },
-                  message: {
-                    type: "string",
-                    example: "Forbidden",
-                  },
-                },
-              },
-            },
-          },
-        },
-        NotFoundError: {
-          description: "Resource not found",
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  status: {
-                    type: "string",
-                    example: "error",
-                  },
-                  message: {
-                    type: "string",
-                    example: "Resource not found",
-                  },
-                },
-              },
-            },
-          },
-        },
-        ValidationError: {
-          description: "Validation error",
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  status: {
-                    type: "string",
-                    example: "error",
-                  },
-                  message: {
-                    type: "string",
-                    example: "Validation error",
-                  },
-                  details: {
-                    type: "object",
-                    description: "Detailed validation errors",
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-    tags: [
-      {
-        name: "Auth",
-        description: "Authentication endpoints",
-      },
-      {
-        name: "Users",
-        description: "User management endpoints",
-      },
-      {
-        name: "Workspaces",
-        description: "Workspace management endpoints",
-      },
-      {
-        name: "Tasks",
-        description: "Task management endpoints",
-      },
-      {
-        name: "Comments",
-        description: "Comment management endpoints",
-      },
-      {
-        name: "Attachments",
-        description: "File attachment endpoints",
-      },
-      {
-        name: "Members",
-        description: "Workspace member management endpoints",
-      },
-      {
-        name: "Logs",
-        description: "Activity log endpoints",
-      },
-    ],
-  },
-  apis: ["./src/modules/*/routes/*.js", "./src/modules/*/*.routes.js"],
-};
+// Serve logo explicitly
+app.use(express.static(path.join(__dirname, "../public")));
 
-const swaggerSpec = swaggerJsdoc(swaggerOptions);
+// atau lebih spesifik:
+app.get("/logo.png", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/logo.png"));
+});
 
-// Swagger UI with custom CSS
-app.use(
-  "/api-docs",
-  swaggerUi.serve,
-  swaggerUi.setup(swaggerSpec, {
-    customCss: `
-      .swagger-ui .topbar { display: none; }
-      .swagger-ui .info .title { color: #2c3e50; }
-      .swagger-ui .scheme-container { background: #f8f9fa; padding: 15px; border-radius: 5px; }
-    `,
-    customSiteTitle: "Task Management API Documentation",
-    customfavIcon: "/logo.png",
-  })
-);
+// Swagger UI - menggunakan config dari swagger.js
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs, swaggerOptions));
 
 // API Routes
 app.use("/api/auth", authRoutes);
@@ -226,7 +61,7 @@ app.use("/api/logs", logsRoutes);
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "success",
-    message: "Task Management API is running",
+    message: "GMI Task Management API is running",
     timestamp: new Date().toISOString(),
     version: "1.0.0",
     environment: process.env.NODE_ENV || "development",
@@ -237,7 +72,7 @@ app.get("/health", (req, res) => {
 app.get("/api", (req, res) => {
   res.status(200).json({
     status: "success",
-    message: "Task Management API",
+    message: "GMI Task Management API",
     version: "1.0.0",
     documentation: "/api-docs",
     endpoints: {

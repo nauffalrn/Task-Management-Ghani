@@ -1,15 +1,18 @@
-/* global font */
+/* Global font */
 .swagger-ui,
 .swagger-ui * {
   font-family: "Inter", sans-serif !important;
 }
 
-/* Default CSS Variables - fallback untuk light mode */
+/* Single theme variables - Green Natural Theme */
 :root {
-  --swagger-color: #8839ef;
-  --link-color: #1e66f5;
-  --accept-header-color: #40a02b;
+  /* === GMI Brand Colors (Your Palette) === */
+  --primary-green: #40513b; /* Dark green - primary text & backgrounds */
+  --medium-green: #609966; /* Medium green - accents & secondary text */
+  --light-green: #9dc08b; /* Light green - highlights */
+  --cream: #edf1d6; /* Light cream - main background */
 
+  /* === HTTP Method Colors === */
   --post-method-color: #df8e1d;
   --post-method-background-color: transparent;
   --get-method-color: #40a02b;
@@ -25,57 +28,30 @@
   --patch-method-color: #8839ef;
   --patch-method-background-color: transparent;
 
-  --crust: #cdd3e0;
-  --button-text-color: #4c4f69;
-  --all-bg-color: #eff1f5;
-  --secondary-bg-color: #e6e9ef;
-  --header-bg-color: #dce0e8;
-  --block-bg-color: #ccd0da;
-  --selecter-bg-color: #dce0e8;
+  /* === UI Theme Colors (Using Your Palette) === */
+  --swagger-color: #609966; /* Medium green for branding */
+  --link-color: #40513b; /* Dark green for links */
+  --accept-header-color: #9dc08b; /* Light green for headers */
 
-  --primary-text-color: #4c4f69;
-  --secondary-text-color: #5c5f77;
+  --crust: #40513b; /* Dark green for borders */
+  --button-text-color: #40513b; /* Dark green for button text */
+  --all-bg-color: #edf1d6; /* Cream - main background */
+  --secondary-bg-color: #e5ead0; /* Slightly darker cream */
+  --header-bg-color: #d9e1c4; /* Even darker cream */
+  --block-bg-color: #f2f6e8; /* Very light cream */
+  --selecter-bg-color: #e5ead0; /* Secondary cream */
 
-  --block-border-color: rgba(0, 0, 0, 0.08);
+  --primary-text-color: #40513b; /* Dark green for primary text */
+  --secondary-text-color: #609966; /* Medium green for secondary text */
+
+  --block-border-color: rgba(64, 81, 59, 0.2); /* Subtle green borders */
   --block-border-radius: 12px;
   --innner-block-border-radius: 8px;
 
   --icons-opacity: 1;
   --secondary-icon-opacity: 1;
   --black-icons-filter: none;
-  --primary-icon-color: #4c4f69;
-}
-
-/* Dark mode variables */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --swagger-color: #cba6f7;
-    --link-color: #89b4fa;
-    --accept-header-color: #a6e3a1;
-
-    --post-method-color: #f9e2af;
-    --get-method-color: #a6e3a1;
-    --head-method-color: #f5c2e7;
-    --put-method-color: #89b4fa;
-    --delete-method-color: #f38ba8;
-    --options-method-color: #fab387;
-    --patch-method-color: #cba6f7;
-
-    --crust: #11111b;
-    --button-text-color: #11111b;
-    --all-bg-color: #1e1e2e;
-    --secondary-bg-color: #181825;
-    --header-bg-color: #313244;
-    --block-bg-color: #45475a;
-    --selecter-bg-color: #313244;
-
-    --primary-text-color: #cdd6f4;
-    --secondary-text-color: #bac2de;
-
-    --block-border-color: rgba(255, 255, 255, 0.08);
-    --black-icons-filter: invert(1);
-    --primary-icon-color: #cdd6f4;
-  }
+  --primary-icon-color: #40513b; /* Dark green for icons */
 }
 
 /* Apply theme to body */
@@ -95,18 +71,45 @@ body {
   align-items: center !important;
   gap: 16px !important;
   color: var(--primary-text-color) !important;
+  font-weight: 700 !important;
+  font-size: 2.5rem !important;
+  margin-bottom: 1rem !important;
 }
 
 .swagger-ui .info .title::before {
   content: "";
-  background-image: url("/public/logo.png");
+  width: 64px;
+  height: 64px;
+  background-image: url("/logo.png");
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
   display: inline-block;
-  width: 64px;
-  height: 64px;
   flex-shrink: 0;
+}
+
+/* Description styling */
+.swagger-ui .info .description {
+  color: var(--secondary-text-color) !important;
+  font-size: 1.4rem !important;
+  line-height: 2 !important;
+  margin-bottom: 2rem !important;
+}
+
+/* TAMBAH INI - OVERRIDE DENGAN SPECIFICITY TINGGI */
+.swagger-ui .info li,
+.swagger-ui .info p,
+.swagger-ui .info pre,
+.swagger-ui .info table {
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  line-height: 1.6 !important;
+}
+
+/* KHUSUS UNTUK DESCRIPTION PARAGRAPH */
+.swagger-ui .info .description p {
+  font-size: 18px !important;
+  font-weight: 500 !important;
 }
 
 /* arrow expand/collapse */
@@ -140,6 +143,10 @@ body {
 /* oas3 version stamp */
 .swagger-ui .info .title small.version-stamp {
   background-color: var(--swagger-color);
+  color: var(--cream);
+  padding: 4px 8px;
+  border-radius: var(--innner-block-border-radius);
+  font-size: 0.8rem;
 }
 
 .swagger-ui .info .title small pre.version {
@@ -150,7 +157,8 @@ body {
 .swagger-ui .model-box-control:focus,
 .swagger-ui .models-control:focus,
 .swagger-ui .opblock-summary-control:focus {
-  outline: none;
+  outline: 2px solid var(--medium-green) !important;
+  outline-offset: 2px !important;
 }
 
 /* icons */
@@ -167,165 +175,96 @@ body {
   opacity: var(--secondary-icon-opacity);
 }
 
-/* text */
-.swagger-ui {
-  color: var(--primary-text-color);
-}
-
-.swagger-ui .info .title {
-  color: var(--primary-text-color);
-}
-
-.swagger-ui a.nostyle {
-  color: var(--primary-text-color);
-}
-
-.swagger-ui .model-title {
-  color: var(--primary-text-color);
-}
-
-.swagger-ui .models-control {
-  color: var(--primary-text-color);
-}
-
-.swagger-ui .dialog-ux .modal-ux-header h3 {
-  color: var(--primary-text-color);
-}
-
-.swagger-ui .dialog-ux .modal-ux-content h4 {
-  color: var(--primary-text-color);
-}
-
-.swagger-ui .dialog-ux .modal-ux-content p {
-  color: var(--secondary-text-color);
-}
-
-.swagger-ui label {
-  color: var(--primary-text-color);
-}
-
-.swagger-ui .opblock .opblock-section-header h4 {
-  color: var(--primary-text-color);
-}
-
-.swagger-ui .tab li button.tablinks {
-  color: var(--primary-text-color);
-}
-
+/* text colors */
+.swagger-ui,
+.swagger-ui .info .title,
+.swagger-ui a.nostyle,
+.swagger-ui .model-title,
+.swagger-ui .models-control,
+.swagger-ui .dialog-ux .modal-ux-header h3,
+.swagger-ui .dialog-ux .modal-ux-content h4,
+.swagger-ui label,
+.swagger-ui .opblock .opblock-section-header h4,
+.swagger-ui .tab li button.tablinks,
 .swagger-ui .opblock-description-wrapper p,
 .swagger-ui .opblock-external-docs-wrapper p,
-.swagger-ui .opblock-title_normal p {
-  color: var(--primary-text-color);
-}
-
+.swagger-ui .opblock-title_normal p,
 .swagger-ui table thead tr td,
-.swagger-ui table thead tr th {
-  border-bottom: 1px solid var(--block-border-color);
-  color: var(--primary-text-color);
+.swagger-ui table thead tr th,
+.swagger-ui .response-col_status,
+.swagger-ui .parameter__name,
+.swagger-ui .opblock .opblock-summary-operation-id,
+.swagger-ui .opblock .opblock-summary-path,
+.swagger-ui .opblock .opblock-summary-path__deprecated {
+  color: var(--primary-text-color) !important;
 }
 
-.swagger-ui .response-col_status {
-  color: var(--primary-text-color);
+.swagger-ui .dialog-ux .modal-ux-content p,
+.swagger-ui .response-col_links,
+.swagger-ui .parameter__type,
+.swagger-ui .prop-format,
+.swagger-ui .opblock .opblock-summary-description,
+.swagger-ui .info li,
+.swagger-ui .info p,
+.swagger-ui .info table,
+.swagger-ui .model {
+  color: var(--secondary-text-color) !important;
 }
 
-.swagger-ui .response-col_links {
-  color: var(--secondary-text-color);
-}
-
-.swagger-ui .parameter__name {
-  color: var(--primary-text-color);
-}
-
-.swagger-ui .parameter__type {
-  color: var(--secondary-text-color);
-}
-
-.swagger-ui .prop-format {
-  color: var(--secondary-text-color);
-}
-
+/* Tag styling */
 .swagger-ui .opblock-tag {
-  color: var(--primary-text-color);
+  background: var(--secondary-bg-color) !important;
+  border: 1px solid var(--block-border-color) !important;
+  border-radius: var(--block-border-radius) !important;
+  color: var(--primary-text-color) !important;
+  font-size: 1.25rem !important;
+  font-weight: 600 !important;
+  padding: 1rem 1.5rem !important;
+  margin-bottom: 1rem !important;
+  box-shadow: 0 2px 4px rgba(64, 81, 59, 0.1) !important;
 }
 
-/* Tag styling - different colors for each section */
-.swagger-ui .opblock-tag {
-  border-bottom: 1px solid var(--block-border-color);
-  color: var(--primary-text-color);
-}
-
-/* Specific tag colors */
-.swagger-ui .opblock-tag[data-tag="User authentication and authorization endpoints"] {
-  background-color: var(--get-method-color);
-  color: var(--button-text-color);
-  opacity: 0.8;
-}
-
-.swagger-ui .opblock-tag[data-tag="Task file attachment management endpoints"] {
-  background-color: var(--post-method-color);
-  color: var(--button-text-color);
-  opacity: 0.8;
-}
-
-.swagger-ui .opblock-tag[data-tag="Task comment management endpoints"] {
-  background-color: var(--put-method-color);
-  color: var(--button-text-color);
-  opacity: 0.8;
-}
-
-.swagger-ui .opblock-tag[data-tag="Activity log and audit trail endpoints"] {
-  background-color: var(--delete-method-color);
-  color: var(--button-text-color);
-  opacity: 0.8;
-}
-
-/* Tag section headers */
 .swagger-ui .opblock-tag small {
-  padding: 4px 8px;
-  border-radius: var(--innner-block-border-radius);
-  font-weight: 500;
+  color: var(--secondary-text-color) !important;
+  font-weight: 500 !important;
+  font-size: 0.9rem !important;
 }
 
-/* Fix anchor links to go directly to sections */
 .swagger-ui .opblock-tag a.nostyle {
   text-decoration: none !important;
   color: inherit !important;
 }
 
-.swagger-ui .opblock .opblock-summary-operation-id,
-.swagger-ui .opblock .opblock-summary-path,
-.swagger-ui .opblock .opblock-summary-path__deprecated {
-  color: var(--primary-text-color);
+/* Operation blocks */
+.swagger-ui .opblock {
+  border: 1px solid var(--block-border-color) !important;
+  border-radius: var(--block-border-radius) !important;
+  margin-bottom: 1rem !important;
+  background: var(--block-bg-color) !important;
+  box-shadow: 0 1px 3px rgba(64, 81, 59, 0.1) !important;
 }
 
-.swagger-ui .opblock .opblock-summary-description {
-  color: var(--secondary-text-color);
+.swagger-ui .opblock .opblock-summary {
+  padding: 1rem !important;
+  border-radius: var(--block-border-radius) var(--block-border-radius) 0 0 !important;
 }
 
-.swagger-ui .info li,
-.swagger-ui .info p,
-.swagger-ui .info table {
-  color: var(--secondary-text-color);
+.swagger-ui .opblock .opblock-summary-method {
+  border-radius: var(--innner-block-border-radius) !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  font-size: 0.75rem !important;
+  padding: 0.5rem 1rem !important;
+  margin-right: 1rem !important;
+  color: white !important;
 }
 
-.swagger-ui .model {
-  color: var(--secondary-text-color);
-}
-
-.swagger-ui .highlight-code > .microlight code.language-json {
-  color: var(--primary-text-color) !important;
-}
-
-.swagger-ui .highlight-code > .microlight code.language-json span {
-  color: var(--primary-text-color) !important;
-}
-
-/* methods colors */
+/* === HTTP METHOD COLORS (Keep Original) === */
 
 /* http post */
 .swagger-ui .opblock.opblock-post .opblock-summary-method {
   background: var(--post-method-color);
-  color: var(--button-text-color);
+  color: white;
 }
 
 .swagger-ui .opblock.opblock-post .opblock-control-arrow svg.arrow path {
@@ -348,7 +287,7 @@ body {
 /* http get */
 .swagger-ui .opblock.opblock-get .opblock-summary-method {
   background: var(--get-method-color);
-  color: var(--button-text-color);
+  color: white;
 }
 
 .swagger-ui .opblock.opblock-get .opblock-control-arrow svg.arrow path {
@@ -371,7 +310,7 @@ body {
 /* http head */
 .swagger-ui .opblock.opblock-head .opblock-summary-method {
   background: var(--head-method-color);
-  color: var(--button-text-color);
+  color: white;
 }
 
 .swagger-ui .opblock.opblock-head .opblock-control-arrow svg.arrow path {
@@ -394,7 +333,7 @@ body {
 /* http put */
 .swagger-ui .opblock.opblock-put .opblock-summary-method {
   background: var(--put-method-color);
-  color: var(--button-text-color);
+  color: white;
 }
 
 .swagger-ui .opblock.opblock-put .opblock-control-arrow svg.arrow path {
@@ -417,7 +356,7 @@ body {
 /* http delete */
 .swagger-ui .opblock.opblock-delete .opblock-summary-method {
   background: var(--delete-method-color);
-  color: var(--button-text-color);
+  color: white;
 }
 
 .swagger-ui .opblock.opblock-delete .opblock-control-arrow svg.arrow path {
@@ -445,7 +384,7 @@ body {
 /* http options */
 .swagger-ui .opblock.opblock-options .opblock-summary-method {
   background: var(--options-method-color);
-  color: var(--button-text-color);
+  color: white;
 }
 
 .swagger-ui .opblock.opblock-options .opblock-control-arrow svg.arrow path {
@@ -473,7 +412,7 @@ body {
 /* http patch */
 .swagger-ui .opblock.opblock-patch .opblock-summary-method {
   background: var(--patch-method-color);
-  color: var(--button-text-color);
+  color: white;
 }
 
 .swagger-ui .opblock.opblock-patch .opblock-control-arrow svg.arrow path {
@@ -481,7 +420,7 @@ body {
 }
 
 .swagger-ui .opblock.opblock-patch .opblock-summary {
-  border-color: var(--patch-method-color);
+  border-color: var(--patch-method_color);
 }
 
 .swagger-ui .opblock.opblock-patch {
@@ -492,6 +431,8 @@ body {
 .swagger-ui .opblock.opblock-patch .tab-header .tab-item.active h4 span::after {
   background: var(--patch-method-color);
 }
+
+/* === UI ELEMENTS (Using Green Palette) === */
 
 .swagger-ui .scheme-container {
   background: var(--secondary-bg-color);
@@ -506,11 +447,13 @@ body {
   background: var(--selecter-bg-color);
   border-radius: var(--block-border-radius);
   color: var(--primary-text-color);
+  border: 1px solid var(--block-border-color);
 }
 
 .swagger-ui section.models {
   border: 1px solid var(--block-border-color);
   background-color: var(--block-bg-color);
+  border-radius: var(--block-border-radius);
 }
 
 .swagger-ui .opblock .opblock-section-header {
@@ -520,22 +463,31 @@ body {
 .swagger-ui .body-param__example {
   background-color: var(--secondary-bg-color) !important;
   border-radius: var(--block-border-radius) !important;
+  border: 1px solid var(--block-border-color) !important;
 }
 
 .swagger-ui .example {
   background-color: var(--secondary-bg-color) !important;
   border-radius: var(--block-border-radius) !important;
+  border: 1px solid var(--block-border-color) !important;
 }
 
-.swagger-ui .copy-to-clipboard {
-  background: rgba(255, 255, 255, var(--icons-opacity));
-  border-radius: var(--block-border-radius);
+.swagger-ui .highlight-code {
+  background-color: var(--secondary-bg-color) !important;
+  border: 1px solid var(--block-border-color) !important;
+  border-radius: var(--block-border-radius) !important;
+  color: var(--primary-text-color) !important;
 }
 
-.swagger-ui .opblock .opblock-summary-method {
-  border-radius: var(--innner-block-border-radius);
+.swagger-ui .highlight-code > .microlight code.language-json {
+  color: var(--primary-text-color) !important;
 }
 
+.swagger-ui .highlight-code > .microlight code.language-json span {
+  color: var(--primary-text-color) !important;
+}
+
+/* Form elements */
 .swagger-ui input[type="email"],
 .swagger-ui input[type="file"],
 .swagger-ui input[type="password"],
@@ -547,81 +499,58 @@ body {
   border-radius: var(--block-border-radius);
   color: var(--primary-text-color);
   outline: none;
+  padding: 0.5rem;
 }
 
-.swagger-ui .dialog-ux .modal-ux-header {
-  border-bottom: 1px solid var(--block-border-color);
+.swagger-ui input[type="email"]:focus,
+.swagger-ui input[type="file"]:focus,
+.swagger-ui input[type="password"]:focus,
+.swagger-ui input[type="search"]:focus,
+.swagger-ui input[type="text"]:focus,
+.swagger-ui textarea:focus {
+  border-color: var(--medium-green);
+  box-shadow: 0 0 0 2px rgba(157, 192, 139, 0.2);
 }
 
+/* Buttons */
 .swagger-ui .btn {
   border: 2px solid var(--block-border-color);
   border-radius: var(--block-border-radius);
   color: var(--primary-text-color);
+  background: var(--block-bg-color);
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
+.swagger-ui .btn:hover {
+  background: var(--light-green);
+  border-color: var(--medium-green);
+  color: white;
+}
+
+/* Modal dialogs */
 .swagger-ui .dialog-ux .modal-ux {
   background: var(--block-bg-color);
   border: 1px solid var(--block-border-color);
   border-radius: var(--block-border-radius);
+  box-shadow: 0 10px 25px rgba(64, 81, 59, 0.2);
 }
 
-.swagger-ui .auth-btn-wrapper {
-  justify-content: left;
-}
-
-.swagger-ui .opblock-tag {
+.swagger-ui .dialog-ux .modal-ux-header {
   border-bottom: 1px solid var(--block-border-color);
-  color: var(--primary-text-color);
+  background: var(--secondary-bg-color);
 }
 
-/* Specific tag colors */
-.swagger-ui .opblock-tag[data-tag="User authentication and authorization endpoints"] {
-  background-color: var(--get-method-color);
-  color: var(--button-text-color);
-  opacity: 0.8;
-}
-
-.swagger-ui .opblock-tag[data-tag="Task file attachment management endpoints"] {
-  background-color: var(--post-method-color);
-  color: var(--button-text-color);
-  opacity: 0.8;
-}
-
-.swagger-ui .opblock-tag[data-tag="Task comment management endpoints"] {
-  background-color: var(--put-method-color);
-  color: var(--button-text-color);
-  opacity: 0.8;
-}
-
-.swagger-ui .opblock-tag[data-tag="Activity log and audit trail endpoints"] {
-  background-color: var(--delete-method-color);
-  color: var(--button-text-color);
-  opacity: 0.8;
-}
-
-/* Tag section headers */
-.swagger-ui .opblock-tag small {
-  padding: 4px 8px;
-  border-radius: var(--innner-block-border-radius);
-  font-weight: 500;
-}
-
-/* Fix anchor links to go directly to sections */
-.swagger-ui .opblock-tag a.nostyle {
-  text-decoration: none !important;
-  color: inherit !important;
-}
-
-.swagger-ui section.models.is-open h4 {
+/* Tables */
+.swagger-ui table thead tr td,
+.swagger-ui table thead tr th {
   border-bottom: 1px solid var(--block-border-color);
+  background: var(--secondary-bg-color);
 }
 
-.swagger-ui .opblock {
-  border-radius: var(--block-border-radius);
-}
-
-.swagger-ui section.models {
-  border-radius: var(--block-border-radius);
+.swagger-ui table tbody tr td {
+  border-bottom: 1px solid var(--block-border-color);
 }
 
 /* Hide authorize section completely */
@@ -644,24 +573,51 @@ body {
 }
 
 /* Remove any inconsistent backgrounds */
-.swagger-ui .wrapper .block.col-12 {
-  background-color: var(--all-bg-color) !important;
-}
-
-.swagger-ui .information-container .info {
-  background-color: var(--all-bg-color) !important;
-}
-
-/* Ensure operation blocks have consistent background */
-.swagger-ui .operation-tag-content {
-  background-color: var(--all-bg-color) !important;
-}
-
-.swagger-ui .operations-tag {
-  background-color: var(--all-bg-color) !important;
-}
-
-/* Remove any default swagger backgrounds */
+.swagger-ui .wrapper .block.col-12,
+.swagger-ui .information-container .info,
+.swagger-ui .operation-tag-content,
+.swagger-ui .operations-tag,
 .swagger-ui .swagger-container .swagger-ui-wrap {
   background-color: var(--all-bg-color) !important;
+}
+
+/* Scrollbar styling */
+.swagger-ui ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.swagger-ui ::-webkit-scrollbar-track {
+  background: var(--secondary-bg-color);
+  border-radius: var(--innner-block-border-radius);
+}
+
+.swagger-ui ::-webkit-scrollbar-thumb {
+  background: var(--light-green);
+  border-radius: var(--innner-block-border-radius);
+}
+
+.swagger-ui ::-webkit-scrollbar-thumb:hover {
+  background: var(--medium-green);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .swagger-ui .info .title {
+    font-size: 2rem !important;
+    gap: 12px !important;
+  }
+
+  .swagger-ui .info .title::before {
+    font-size: 2rem !important;
+  }
+
+  .swagger-ui .opblock-tag {
+    padding: 0.75rem 1rem !important;
+    font-size: 1.1rem !important;
+  }
+
+  .swagger-ui .opblock .opblock-summary {
+    padding: 0.75rem !important;
+  }
 }

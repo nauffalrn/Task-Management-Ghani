@@ -1,6 +1,6 @@
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import swaggerJSDoc from "swagger-jsdoc";
+import swaggerJsdoc from "swagger-jsdoc";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -9,17 +9,110 @@ const options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "Task Management API",
+      title: "Ghani Task Management API",
       version: "1.0.0",
       description:
-        "A comprehensive task management system API with workspace collaboration features",
+        "A comprehensive task management system API with role-based access control",
     },
+    servers: [
+      {
+        url: `http://localhost:${process.env.PORT || 3000}/api`,
+        description: "Development server",
+      }
+    ],
     components: {
       securitySchemes: {
         bearerAuth: {
           type: "http",
           scheme: "bearer",
           bearerFormat: "JWT",
+          description: "Enter JWT token in the format: Bearer <token>",
+        },
+      },
+      responses: {
+        UnauthorizedError: {
+          description: "Access token is missing or invalid",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  status: {
+                    type: "string",
+                    example: "error",
+                  },
+                  message: {
+                    type: "string",
+                    example: "Unauthorized",
+                  },
+                },
+              },
+            },
+          },
+        },
+        ForbiddenError: {
+          description: "Insufficient permissions",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  status: {
+                    type: "string",
+                    example: "error",
+                  },
+                  message: {
+                    type: "string",
+                    example: "Forbidden",
+                  },
+                },
+              },
+            },
+          },
+        },
+        NotFoundError: {
+          description: "Resource not found",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  status: {
+                    type: "string",
+                    example: "error",
+                  },
+                  message: {
+                    type: "string",
+                    example: "Resource not found",
+                  },
+                },
+              },
+            },
+          },
+        },
+        ValidationError: {
+          description: "Validation error",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  status: {
+                    type: "string",
+                    example: "error",
+                  },
+                  message: {
+                    type: "string",
+                    example: "Validation error",
+                  },
+                  details: {
+                    type: "object",
+                    description: "Detailed validation errors",
+                  },
+                },
+              },
+            },
+          },
         },
       },
       schemas: {
@@ -28,41 +121,47 @@ const options = {
           properties: {
             id: {
               type: "integer",
-              description: "Unique user identifier",
+              description: "User ID",
               example: 1,
             },
-            username: {
-              type: "string",
-              description: "Unique username",
-              example: "john_doe",
-            },
-            email: {
-              type: "string",
-              format: "email",
-              description: "User email address",
-              example: "john.doe@company.com",
-            },
-            fullName: {
+            name: {
               type: "string",
               description: "User's full name",
               example: "John Doe",
             },
+            email: {
+              type: "string",
+              format: "email",
+              description: "User's email address",
+              example: "john@gmi.com",
+            },
             role: {
               type: "string",
-              enum: ["owner", "manager", "employee"],
-              description: "User role in the system",
-              example: "employee",
-            },
-            department: {
-              type: "string",
-              description: "User's department",
-              example: "Engineering",
+              enum: [
+                "MANAGER",
+                "HUMAS_HEAD",
+                "ACARA_HEAD",
+                "KONSUMSI_HEAD",
+                "DEKORASI_HEAD",
+                "KEAMANAN_HEAD",
+                "HUMAS_STAFF",
+                "ACARA_STAFF",
+                "KONSUMSI_STAFF",
+                "DEKORASI_STAFF",
+                "KEAMANAN_STAFF",
+              ],
+              description: "User's role in the system",
+              example: "HUMAS_STAFF",
             },
             createdAt: {
               type: "string",
               format: "date-time",
-              description: "Account creation timestamp",
-              example: "2024-08-28T10:30:00.000Z",
+              description: "User creation timestamp",
+            },
+            updatedAt: {
+              type: "string",
+              format: "date-time",
+              description: "User last update timestamp",
             },
           },
         },
@@ -71,29 +170,33 @@ const options = {
           properties: {
             id: {
               type: "integer",
-              description: "Unique workspace identifier",
+              description: "Workspace ID",
               example: 1,
             },
             name: {
               type: "string",
               description: "Workspace name",
-              example: "Product Development",
+              example: "HUMAS Department",
             },
             description: {
               type: "string",
               description: "Workspace description",
-              example: "Main workspace for product development team",
+              example: "HUMAS workspace for Independence Day project",
             },
             createdBy: {
               type: "integer",
-              description: "ID of the user who created the workspace",
+              description: "ID of user who created the workspace",
               example: 1,
             },
             createdAt: {
               type: "string",
               format: "date-time",
               description: "Workspace creation timestamp",
-              example: "2024-08-28T10:30:00.000Z",
+            },
+            updatedAt: {
+              type: "string",
+              format: "date-time",
+              description: "Workspace last update timestamp",
             },
           },
         },
@@ -102,211 +205,82 @@ const options = {
           properties: {
             id: {
               type: "integer",
-              description: "Unique task identifier",
+              description: "Task ID",
               example: 1,
             },
             title: {
               type: "string",
               description: "Task title",
-              example: "Fix login authentication bug",
+              example: "Design Independence Day Banner",
             },
             description: {
               type: "string",
-              description: "Detailed task description",
-              example:
-                "Fix the JWT authentication issue that prevents users from logging in",
-            },
-            status: {
-              type: "string",
-              enum: ["todo", "in_progress", "done"],
-              description: "Current task status",
-              example: "in_progress",
-            },
-            priority: {
-              type: "string",
-              enum: ["low", "medium", "high", "urgent"],
-              description: "Task priority level",
-              example: "high",
+              description: "Task description",
+              example: "Create banner for Independence Day celebration",
             },
             workspaceId: {
               type: "integer",
-              description: "ID of the workspace containing this task",
+              description: "ID of workspace this task belongs to",
               example: 1,
             },
-            assignedTo: {
+            assigneeId: {
               type: "integer",
-              description: "ID of the user assigned to this task",
-              example: 6,
+              description: "ID of user assigned to this task",
+              example: 2,
             },
-            createdBy: {
-              type: "integer",
-              description: "ID of the user who created this task",
-              example: 1,
+            priority: {
+              type: "string",
+              enum: ["LOW", "MEDIUM", "HIGH", "URGENT"],
+              description: "Task priority level",
+              example: "HIGH",
+            },
+            status: {
+              type: "string",
+              enum: ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
+              description: "Task status",
+              example: "PENDING",
             },
             dueDate: {
               type: "string",
               format: "date-time",
               description: "Task due date",
-              example: "2024-12-31T23:59:59.000Z",
+              example: "2025-08-17T10:00:00.000Z",
             },
             createdAt: {
               type: "string",
               format: "date-time",
               description: "Task creation timestamp",
-              example: "2024-08-28T10:30:00.000Z",
-            },
-          },
-        },
-        Member: {
-          type: "object",
-          properties: {
-            id: {
-              type: "integer",
-              description: "Unique member identifier",
-              example: 1,
-            },
-            workspaceId: {
-              type: "integer",
-              description: "ID of the workspace",
-              example: 1,
-            },
-            userId: {
-              type: "integer",
-              description: "ID of the user",
-              example: 6,
-            },
-            role: {
-              type: "string",
-              enum: ["admin", "member"],
-              description: "Member role in the workspace",
-              example: "member",
-            },
-            addedBy: {
-              type: "integer",
-              description: "ID of the user who added this member",
-              example: 1,
-            },
-            joinedAt: {
-              type: "string",
-              format: "date-time",
-              description: "Member join timestamp",
-              example: "2024-08-28T10:30:00.000Z",
-            },
-          },
-        },
-        Comment: {
-          type: "object",
-          properties: {
-            id: {
-              type: "integer",
-              description: "Unique comment identifier",
-              example: 1,
-            },
-            content: {
-              type: "string",
-              description: "Comment text content",
-              example:
-                "I've started working on this task. Will update progress by EOD.",
-            },
-            taskId: {
-              type: "integer",
-              description: "ID of the task this comment belongs to",
-              example: 1,
-            },
-            userId: {
-              type: "integer",
-              description: "ID of the user who wrote the comment",
-              example: 6,
-            },
-            createdAt: {
-              type: "string",
-              format: "date-time",
-              description: "Comment creation timestamp",
-              example: "2024-08-28T10:30:00.000Z",
             },
             updatedAt: {
               type: "string",
               format: "date-time",
-              description: "Comment last update timestamp",
-              example: "2024-08-28T11:15:00.000Z",
-            },
-          },
-        },
-        Attachment: {
-          type: "object",
-          properties: {
-            id: {
-              type: "integer",
-              description: "Unique attachment identifier",
-              example: 1,
-            },
-            fileName: {
-              type: "string",
-              description: "Original filename",
-              example: "bug-screenshot.png",
-            },
-            filePath: {
-              type: "string",
-              description: "Server file path",
-              example: "/uploads/attachments/1234567890-bug-screenshot.png",
-            },
-            fileSize: {
-              type: "integer",
-              description: "File size in bytes",
-              example: 2048000,
-            },
-            fileType: {
-              type: "string",
-              description: "MIME type of the file",
-              example: "image/png",
-            },
-            description: {
-              type: "string",
-              description: "Optional file description",
-              example: "Screenshot showing the login bug",
-            },
-            taskId: {
-              type: "integer",
-              description: "ID of the task this attachment belongs to",
-              example: 1,
-            },
-            uploadedBy: {
-              type: "integer",
-              description: "ID of the user who uploaded the file",
-              example: 6,
-            },
-            uploadedAt: {
-              type: "string",
-              format: "date-time",
-              description: "File upload timestamp",
-              example: "2024-08-28T10:30:00.000Z",
+              description: "Task last update timestamp",
             },
           },
         },
         Error: {
           type: "object",
           properties: {
-            success: {
-              type: "boolean",
-              example: false,
+            status: {
+              type: "string",
+              example: "error",
             },
             message: {
               type: "string",
-              example: "Resource not found",
+              example: "Error description",
             },
-            error: {
-              type: "string",
-              description: "Error details",
-              example: "The requested resource could not be found",
+            details: {
+              type: "object",
+              description: "Additional error details",
             },
           },
         },
         Success: {
           type: "object",
           properties: {
-            success: {
-              type: "boolean",
-              example: true,
+            status: {
+              type: "string",
+              example: "success",
             },
             message: {
               type: "string",
@@ -321,31 +295,27 @@ const options = {
       },
     },
   },
-  apis: [
-    join(__dirname, "../modules/**/*.routes.js"),
-    join(__dirname, "../modules/**/*.controller.js"),
-  ],
+  apis: ["./src/modules/*/routes/*.js", "./src/modules/*/*.routes.js"],
 };
 
-const specs = swaggerJSDoc(options);
+const specs = swaggerJsdoc(options);
 
-const swaggerUiOptions = {
-  customCssUrl: ["/public/swagger/global.css"],
-  customJs: "/public/swagger/swagger.js",
-  customSiteTitle: "Task Management API",
-  customfavIcon: "/public/logo.png",
+// Enhanced Swagger UI options
+const swaggerOptions = {
+  explorer: true,
   swaggerOptions: {
-    persistAuthorization: true,
-    displayRequestDuration: true,
-    filter: false,
-    showExtensions: false,
-    showCommonExtensions: false,
     docExpansion: "none",
-    defaultModelsExpandDepth: -1,
-    defaultModelExpandDepth: -1,
-    url: undefined,
-    urls: undefined
+    showRequestHeaders: true,
+    showCommonExtensions: true,
+    tryItOutEnabled: true,
+    persistAuthorization: true,
+    defaultModelRendering: "model",
+    displayOperationId: false,
+    displayRequestDuration: true,
   },
+  customCssUrl: "/swagger/global.css",
+  customSiteTitle: "Ghani Task Management API Documentation",
+  customfavIcon: "logo.png",
 };
 
-export { specs, swaggerUiOptions };
+export { specs, swaggerOptions };
