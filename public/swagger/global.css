@@ -621,3 +621,7 @@ body {
     padding: 0.75rem !important;
   }
 }
+
+.swagger-ui section.models {
+  background-color: #d9e1c4 !important; 
+}
