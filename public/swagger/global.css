@@ -120,11 +120,65 @@ body {
   fill: var(--primary-text-color) !important;
 }
 
-/* hide try out button (interaction) */
+/* PERBAIKAN UTAMA - TAMPILKAN SEMUA ELEMEN TRY IT OUT */
 .swagger-ui .try-out,
+.swagger-ui .try-out__btn,
 .swagger-ui .execute-wrapper,
 .swagger-ui .btn.execute,
 .swagger-ui .btn-group,
+.swagger-ui .parameters-col_description,
+.swagger-ui .parameter__name,
+.swagger-ui .parameter__type,
+.swagger-ui .parameter__deprecated,
+.swagger-ui .parameter__in,
+.swagger-ui .table-container,
+.swagger-ui .parameters,
+.swagger-ui .parameters-container,
+.swagger-ui .opblock-body,
+.swagger-ui .opblock-section,
+.swagger-ui .opblock-section-header,
+.swagger-ui .execute,
+.swagger-ui .responses-wrapper,
+.swagger-ui .responses {
+  display: block !important;
+  visibility: visible !important;
+}
+
+/* Pastikan button Try it out terlihat dengan baik */
+.swagger-ui .try-out__btn {
+  background: var(--medium-green) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: var(--innner-block-border-radius) !important;
+  padding: 8px 16px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.swagger-ui .try-out__btn:hover {
+  background: var(--primary-green) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Pastikan Execute button terlihat dengan baik */
+.swagger-ui .btn.execute {
+  background: var(--light-green) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: var(--innner-block-border-radius) !important;
+  padding: 10px 20px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.swagger-ui .btn.execute:hover {
+  background: var(--medium-green) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Yang HARUS disembunyikan - HAPUS authorize dan footer */
 .swagger-ui .copy-to-clipboard,
 .swagger-ui .auth-wrapper,
 .swagger-ui .topbar-wrapper .link,
@@ -136,7 +190,10 @@ body {
   .info
   .description
   a[href*="swagger.io"],
-.swagger-ui .swagger-container .swagger-ui-wrap .swagger-ui-footer {
+.swagger-ui .swagger-container .swagger-ui-wrap .swagger-ui-footer,
+.swagger-ui .scheme-container,
+.swagger-ui .btn.authorize,
+.swagger-ui section.schemes {
   display: none !important;
 }
 
@@ -553,14 +610,6 @@ body {
   border-bottom: 1px solid var(--block-border-color);
 }
 
-/* Hide authorize section completely */
-.swagger-ui .scheme-container,
-.swagger-ui .auth-wrapper,
-.swagger-ui .btn.authorize,
-.swagger-ui section.schemes {
-  display: none !important;
-}
-
 /* Ensure consistent background for all swagger containers */
 .swagger-ui .wrapper,
 .swagger-ui .swagger-ui,
@@ -623,5 +672,56 @@ body {
 }
 
 .swagger-ui section.models {
-  background-color: #d9e1c4 !important; 
+  background-color: #d9e1c4 !important;
+}
+
+/* === PERBAIKAN PARAMETERS LAYOUT === */
+
+/* Parameters Section Header - Flex layout */
+.swagger-ui .opblock-section .opblock-section-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 15px 20px !important;
+  background: var(--secondary-bg-color) !important;
+  border-radius: var(--innner-block-border-radius) !important;
+  margin-bottom: 15px !important;
+  border: 1px solid var(--block-border-color) !important;
+}
+
+.swagger-ui .opblock-section .opblock-section-header h4 {
+  margin: 0 !important;
+  flex-grow: 1 !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  color: var(--primary-text-color) !important;
+}
+
+/* Try it out button di header sebelah kanan */
+.swagger-ui .try-out {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  flex-shrink: 0 !important;
+}
+
+/* Cancel button warna merah */
+.swagger-ui .btn.cancel {
+  background: #dc3545 !important;
+  color: white !important;
+  border: none !important;
+  border-radius: var(--innner-block-border-radius) !important;
+  padding: 8px 16px !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  text-transform: uppercase !important;
+  margin-left: 8px !important;
+}
+
+.swagger-ui .btn.cancel:hover {
+  background: #c82333 !important;
+  transform: translateY(-1px) !important;
 }

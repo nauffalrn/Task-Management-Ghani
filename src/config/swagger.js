@@ -1,6 +1,7 @@
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import swaggerJsdoc from "swagger-jsdoc";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,8 +17,8 @@ const options = {
     },
     servers: [
       {
-        url: `http://localhost:${process.env.PORT || 3000}/api`,
-        description: "Development server",
+        url: `http://localhost:${process.env.PORT || 5000}`,
+        description: "Local development server",
       },
     ],
     components: {
@@ -836,96 +837,6 @@ const options = {
             },
           },
         },
-        PaginatedResponse: {
-          type: "object",
-          properties: {
-            status: {
-              type: "string",
-              example: "success",
-            },
-            message: {
-              type: "string",
-              example: "Data retrieved successfully",
-            },
-            data: {
-              type: "array",
-              items: {
-                type: "object",
-              },
-              description: "Array of data items",
-            },
-            meta: {
-              $ref: "#/components/schemas/PaginationMeta",
-            },
-          },
-        },
-
-        // === STATISTICS SCHEMAS ===
-        WorkspaceStats: {
-          type: "object",
-          properties: {
-            totalTasks: {
-              type: "integer",
-              description: "Total number of tasks",
-              example: 25,
-            },
-            pendingTasks: {
-              type: "integer",
-              description: "Number of pending tasks",
-              example: 10,
-            },
-            inProgressTasks: {
-              type: "integer",
-              description: "Number of in-progress tasks",
-              example: 8,
-            },
-            completedTasks: {
-              type: "integer",
-              description: "Number of completed tasks",
-              example: 7,
-            },
-            overdueTasks: {
-              type: "integer",
-              description: "Number of overdue tasks",
-              example: 3,
-            },
-            totalMembers: {
-              type: "integer",
-              description: "Total number of members",
-              example: 12,
-            },
-          },
-        },
-        UserStats: {
-          type: "object",
-          properties: {
-            totalWorkspaces: {
-              type: "integer",
-              description: "Number of workspaces user is member of",
-              example: 3,
-            },
-            totalTasks: {
-              type: "integer",
-              description: "Total tasks assigned to user",
-              example: 15,
-            },
-            pendingTasks: {
-              type: "integer",
-              description: "Pending tasks assigned to user",
-              example: 5,
-            },
-            completedTasks: {
-              type: "integer",
-              description: "Completed tasks by user",
-              example: 10,
-            },
-            overdueTasks: {
-              type: "integer",
-              description: "Overdue tasks assigned to user",
-              example: 2,
-            },
-          },
-        },
       },
     },
   },
@@ -934,22 +845,37 @@ const options = {
 
 const specs = swaggerJsdoc(options);
 
+// Load CSS file yang sudah ada
+let customCss = "";
+try {
+  customCss = fs.readFileSync(
+    join(__dirname, "../../public/swagger/global.css"),
+    "utf8"
+  );
+} catch (error) {
+  console.log("Could not load swagger CSS file:", error.message);
+}
+
 const swaggerOptions = {
   explorer: true,
+  customSiteTitle: "GMI Task Management API Documentation",
+  customfavIcon: "/logo.png",
+  customCss: customCss,
   swaggerOptions: {
     docExpansion: "none",
     filter: true,
-    showRequestHeaders: true,
-    showCommonExtensions: true,
-    tryItOutEnabled: true,
     persistAuthorization: true,
+    tryItOutEnabled: true,
+    supportedSubmitMethods: ["get", "post", "put", "delete", "patch"],
+    operationsSorter: "alpha",
+    tagsSorter: "alpha",
     defaultModelRendering: "model",
-    displayOperationId: false,
     displayRequestDuration: true,
+    requestInterceptor: (req) => {
+      console.log("Swagger Request:", req.url);
+      return req;
+    },
   },
-  customCssUrl: "/swagger/global.css",
-  customSiteTitle: "GMI Task Management API Documentation",
-  customfavIcon: "/logo.png",
 };
 
 export { specs, swaggerOptions };

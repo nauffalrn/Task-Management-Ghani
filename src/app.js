@@ -26,8 +26,15 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Middlewares
-app.use(cors());
+// Enhanced CORS configuration for Swagger
+app.use(
+  cors({
+    origin: ["http://localhost:5000", "http://127.0.0.1:5000"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+    credentials: true,
+  })
+);
 app.use(morgan("combined"));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -39,12 +46,11 @@ app.use("/swagger", express.static(path.join(__dirname, "../public/swagger")));
 // Serve logo explicitly
 app.use(express.static(path.join(__dirname, "../public")));
 
-// atau lebih spesifik:
 app.get("/logo.png", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/logo.png"));
 });
 
-// Swagger UI - menggunakan config dari swagger.js
+// Swagger UI
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs, swaggerOptions));
 
 // API Routes
