@@ -1,15 +1,14 @@
 import express from "express";
 import cors from "cors";
-import morgan from "morgan";
-import swaggerUi from "swagger-ui-express";
 import path from "path";
 import { fileURLToPath } from "url";
+import morgan from "morgan";
 
 // Import middlewares
-import { errorHandler, notFoundHandler } from "./common/middlewares/error.js";
+import { notFoundHandler, errorHandler } from "./common/middlewares/error.js";
 
 // Import Swagger config
-import { specs, swaggerOptions } from "./config/swagger.js";
+import { swaggerServe, swaggerSetup } from "./config/swagger.js";
 
 // Import routes
 import authRoutes from "./modules/auth/auth.routes.js";
@@ -17,16 +16,16 @@ import usersRoutes from "./modules/users/users.routes.js";
 import workspacesRoutes from "./modules/workspaces/workspaces.routes.js";
 import tasksRoutes from "./modules/tasks/tasks.routes.js";
 import commentsRoutes from "./modules/comments/comments.routes.js";
-import attachmentsRoutes from "./modules/attachments/attachments.routes.js";
 import membersRoutes from "./modules/members/members.routes.js";
 import logsRoutes from "./modules/logs/logs.routes.js";
+import attachmentsRoutes from "./modules/attachments/attachments.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Enhanced CORS configuration for Swagger
+// Enhanced CORS configuration
 app.use(
   cors({
     origin: ["http://localhost:5000", "http://127.0.0.1:5000"],
@@ -35,29 +34,31 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(morgan("combined"));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// Serve static files
-app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
-app.use("/swagger", express.static(path.join(__dirname, "../public/swagger")));
+// Serve static files dengan path yang benar
+app.use("/public", express.static(path.join(__dirname, "../public")));
 
-// Serve logo explicitly
-app.use(express.static(path.join(__dirname, "../public")));
+// Serve logo.png secara langsung di root untuk Swagger
+app.use(
+  "/logo.png",
+  express.static(path.join(__dirname, "../public/logo.png"))
+);
 
-app.get("/logo.png", (req, res) => {
-  res.sendFile(path.join(__dirname, "../public/logo.png"));
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "success",
+    message: "Server is healthy",
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// Swagger UI
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs, swaggerOptions));
-
-// Add debug middleware before API routes
-app.use((req, res, next) => {
-  console.log(`🔍 ${req.method} ${req.originalUrl}`);
-  next();
-});
+// API Documentation
+app.use("/api-docs", swaggerServe, swaggerSetup);
 
 // API Routes
 app.use("/api/auth", authRoutes);
@@ -65,42 +66,11 @@ app.use("/api/users", usersRoutes);
 app.use("/api/workspaces", workspacesRoutes);
 app.use("/api/tasks", tasksRoutes);
 app.use("/api/comments", commentsRoutes);
-app.use("/api/attachments", attachmentsRoutes);
 app.use("/api/members", membersRoutes);
 app.use("/api/logs", logsRoutes);
+app.use("/api/attachments", attachmentsRoutes);
 
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "success",
-    message: "Ghani Task Management API is running",
-    timestamp: new Date().toISOString(),
-    version: "1.0.0",
-    environment: process.env.NODE_ENV || "development",
-  });
-});
-
-// API Info endpoint
-app.get("/api", (req, res) => {
-  res.status(200).json({
-    status: "success",
-    message: "Ghani Task Management API",
-    version: "1.0.0",
-    documentation: "/api-docs",
-    endpoints: {
-      auth: "/api/auth",
-      users: "/api/users",
-      workspaces: "/api/workspaces",
-      tasks: "/api/tasks",
-      comments: "/api/comments",
-      attachments: "/api/attachments",
-      members: "/api/members",
-      logs: "/api/logs",
-    },
-  });
-});
-
-// 404 handler for undefined routes
+// 404 handler untuk route yang tidak ditemukan
 app.use(notFoundHandler);
 
 // Global error handler

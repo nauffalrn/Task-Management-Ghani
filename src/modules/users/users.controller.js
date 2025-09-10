@@ -7,148 +7,98 @@ class UsersController extends BaseController {
     this.usersService = new UsersService();
   }
 
-  getAllUsers = async (req, res) => {
+  getUsers = async (req, res) => {
     try {
-      const { page = 1, limit = 10, role, search } = req.query;
+      const { page = 1, limit = 10 } = req.query;
+      const users = await this.usersService.getUsers({ page, limit });
 
-      const result = await this.usersService.getAllUsers({
-        page: parseInt(page),
-        limit: parseInt(limit),
-        role,
-        search,
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
+      return res.status(200).json({
+        status: "success",
+        message: "Users retrieved successfully",
+        data: users,
       });
-
-      return this.sendSuccessResponse(
-        res,
-        "Users retrieved successfully",
-        result.data,
-        result.meta
-      );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      return res.status(error.statusCode || 500).json({
+        status: "error",
+        message: error.message,
+      });
     }
   };
 
   getUserById = async (req, res) => {
     try {
       const { id } = req.params;
+      const user = await this.usersService.getUserById(id);
 
-      const user = await this.usersService.getUserById(id, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
+      return res.status(200).json({
+        status: "success",
+        message: "User retrieved successfully",
+        data: user,
       });
-
-      return this.sendSuccessResponse(res, "User retrieved successfully", user);
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      return res.status(error.statusCode || 500).json({
+        status: "error",
+        message: error.message,
+      });
     }
   };
 
   createUser = async (req, res) => {
     try {
       const userData = req.body;
+      const newUser = await this.usersService.createUser(userData);
 
-      const user = await this.usersService.createUser(userData, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
+      return res.status(201).json({
+        status: "success",
+        message: "User created successfully",
+        data: newUser,
       });
-
-      return this.sendSuccessResponse(
-        res,
-        "User created successfully",
-        user,
-        null,
-        201
-      );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      return res.status(error.statusCode || 500).json({
+        status: "error",
+        message: error.message,
+      });
     }
   };
 
   updateUser = async (req, res) => {
     try {
       const { id } = req.params;
-      const updateData = req.body;
+      const userData = req.body;
+      const updatedUser = await this.usersService.updateUser(id, userData);
 
-      const user = await this.usersService.updateUser(id, updateData, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
+      return res.status(200).json({
+        status: "success",
+        message: "User updated successfully",
+        data: updatedUser,
       });
-
-      return this.sendSuccessResponse(res, "User updated successfully", user);
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      return res.status(error.statusCode || 500).json({
+        status: "error",
+        message: error.message,
+      });
     }
   };
 
   deleteUser = async (req, res) => {
     try {
       const { id } = req.params;
+      await this.usersService.deleteUser(id);
 
-      await this.usersService.deleteUser(id, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
+      return res.status(200).json({
+        status: "success",
+        message: "User deleted successfully",
       });
-
-      return this.sendSuccessResponse(res, "User deleted successfully");
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
-    }
-  };
-
-  getUserStats = async (req, res) => {
-    try {
-      const { id } = req.params;
-
-      const stats = await this.usersService.getUserStats(id, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
+      return res.status(error.statusCode || 500).json({
+        status: "error",
+        message: error.message,
       });
-
-      return this.sendSuccessResponse(
-        res,
-        "User statistics retrieved successfully",
-        stats
-      );
-    } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
     }
   };
 }
 
 const usersController = new UsersController();
 
-export const {
-  getAllUsers,
-  getUserById,
-  createUser,
-  updateUser,
-  deleteUser,
-  getUserStats,
-} = usersController;
+export const { getUsers, getUserById, createUser, updateUser, deleteUser } =
+  usersController;

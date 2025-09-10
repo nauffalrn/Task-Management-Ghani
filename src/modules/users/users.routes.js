@@ -1,18 +1,14 @@
 import { Router } from "express";
-import { authenticateToken } from "../../common/middlewares/auth.js";
+import { authenticate, authorize } from "../../common/middlewares/auth.js";
 import {
-  getAllUsers,
+  getUsers,
   getUserById,
   createUser,
   updateUser,
   deleteUser,
-  getUserStats,
 } from "./users.controller.js";
 
 const router = Router();
-
-// All routes require authentication
-router.use(authenticateToken);
 
 /**
  * @swagger
@@ -23,10 +19,11 @@ router.use(authenticateToken);
 
 /**
  * @swagger
- * /users:
+ * /api/users:
  *   get:
- *     summary: Get all users
  *     tags: [Users]
+ *     summary: Get all users
+ *     description: Retrieve a list of all users (admin/manager only)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -34,54 +31,46 @@ router.use(authenticateToken);
  *         name: page
  *         schema:
  *           type: integer
- *           minimum: 1
  *           default: 1
  *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
- *           minimum: 1
- *           maximum: 100
  *           default: 10
- *         description: Number of items per page
- *       - in: query
- *         name: role
- *         schema:
- *           $ref: '#/components/schemas/UserRole'
- *         description: Filter by user role
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *         description: Search by name or email
+ *         description: Number of users per page
  *     responses:
  *       200:
  *         description: Users retrieved successfully
  *         content:
  *           application/json:
  *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/PaginatedResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       type: array
- *                       items:
- *                         $ref: '#/components/schemas/User'
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Users retrieved successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
  *         $ref: '#/components/responses/ForbiddenError'
  */
-router.get("/", getAllUsers);
+router.get("/", authenticate, authorize(["owner", "manager"]), getUsers);
 
 /**
  * @swagger
- * /users/{id}:
+ * /api/users/{id}:
  *   get:
- *     summary: Get user by ID
  *     tags: [Users]
+ *     summary: Get user by ID
+ *     description: Retrieve a specific user by ID
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -109,19 +98,18 @@ router.get("/", getAllUsers);
  *                   $ref: '#/components/schemas/User'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.get("/:id", getUserById);
+router.get("/:id", authenticate, getUserById);
 
 /**
  * @swagger
- * /users:
+ * /api/users:
  *   post:
- *     summary: Create a new user (Admin only)
  *     tags: [Users]
+ *     summary: Create new user
+ *     description: Create a new user (admin/manager only)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -129,7 +117,27 @@ router.get("/:id", getUserById);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CreateUserRequest'
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
+ *               - role
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: John Doe
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: john@example.com
+ *               password:
+ *                 type: string
+ *                 example: password123
+ *               role:
+ *                 type: string
+ *                 enum: [owner, manager, head_it, head_marketing, head_finance, staff_it, staff_marketing, staff_finance]
+ *                 example: staff_it
  *     responses:
  *       201:
  *         description: User created successfully
@@ -152,21 +160,16 @@ router.get("/:id", getUserById);
  *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
  *         $ref: '#/components/responses/ForbiddenError'
- *       409:
- *         description: Email already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post("/", createUser);
+router.post("/", authenticate, authorize(["owner", "manager"]), createUser);
 
 /**
  * @swagger
- * /users/{id}:
+ * /api/users/{id}:
  *   put:
- *     summary: Update user (Admin or own profile)
  *     tags: [Users]
+ *     summary: Update user
+ *     description: Update an existing user
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -181,25 +184,22 @@ router.post("/", createUser);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/UpdateUserRequest'
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: John Doe Updated
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: john.updated@example.com
+ *               role:
+ *                 type: string
+ *                 enum: [owner, manager, head_it, head_marketing, head_finance, staff_it, staff_marketing, staff_finance]
+ *                 example: head_it
  *     responses:
  *       200:
  *         description: User updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: User updated successfully
- *                 data:
- *                   $ref: '#/components/schemas/User'
- *       400:
- *         $ref: '#/components/responses/ValidationError'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
@@ -207,14 +207,15 @@ router.post("/", createUser);
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.put("/:id", updateUser);
+router.put("/:id", authenticate, authorize(["owner", "manager"]), updateUser);
 
 /**
  * @swagger
- * /users/{id}:
+ * /api/users/{id}:
  *   delete:
- *     summary: Delete user (Admin only)
  *     tags: [Users]
+ *     summary: Delete user
+ *     description: Delete a user (owner only)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -226,7 +227,7 @@ router.put("/:id", updateUser);
  *         description: User ID
  *     responses:
  *       200:
- *         $ref: '#/components/responses/SuccessResponse'
+ *         description: User deleted successfully
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
@@ -234,46 +235,6 @@ router.put("/:id", updateUser);
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.delete("/:id", deleteUser);
-
-/**
- * @swagger
- * /users/{id}/stats:
- *   get:
- *     summary: Get user statistics
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: User ID
- *     responses:
- *       200:
- *         description: User statistics retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: User statistics retrieved successfully
- *                 data:
- *                   $ref: '#/components/schemas/UserStats'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
- *       404:
- *         $ref: '#/components/responses/NotFoundError'
- */
-router.get("/:id/stats", getUserStats);
+router.delete("/:id", authenticate, authorize(["owner"]), deleteUser);
 
 export default router;

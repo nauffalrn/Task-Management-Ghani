@@ -2,78 +2,113 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { BaseService } from "../../common/service/base.service.js";
 import { UsersRepository } from "../users/users.repo.js";
-import { HTTP_STATUS } from "../../common/constants/app.js";
+import { AppError } from "../../common/utils/appError.js";
 
 export class AuthService extends BaseService {
   constructor() {
-    const usersRepo = new UsersRepository();
-    super(usersRepo, "User");
+    super();
+    this.usersRepository = new UsersRepository();
   }
 
   async register(userData) {
     try {
-      console.log("📝 Registering user:", userData.email);
+      const { name, email, password, role = "staff_it" } = userData;
+
+      console.log("📝 AuthService register - Input data:", {
+        name,
+        email,
+        role,
+      });
 
       // Check if user already exists
-      const existingUser = await this.repository.findByEmail(userData.email);
+      const existingUser = await this.usersRepository.findByEmail(email);
       if (existingUser) {
-        console.log("❌ User already exists:", userData.email);
-        const error = new Error("User already exists with this email");
-        error.statusCode = HTTP_STATUS.CONFLICT;
-        throw error;
+        console.log("❌ User already exists:", email);
+        throw AppError.conflict("User already exists with this email");
       }
 
       // Hash password
       const saltRounds = 12;
-      const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+      console.log("✅ Password hashed successfully");
 
-      // Create user with default role if not provided
-      const newUser = await this.repository.create({
-        ...userData,
+      // Create user
+      const newUser = await this.usersRepository.create({
+        name,
+        email,
         password: hashedPassword,
-        role: userData.role || "staff_it",
+        role,
       });
 
       console.log("✅ User created successfully:", newUser.id);
 
       // Remove password from response
-      const { password, ...userWithoutPassword } = newUser;
-      return userWithoutPassword;
+      const { password: _, ...userWithoutPassword } = newUser;
+
+      // Generate tokens
+      const { accessToken, refreshToken } = this.generateTokens({
+        userId: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+      });
+
+      return {
+        user: userWithoutPassword,
+        accessToken,
+        refreshToken,
+        expiresIn: "1d",
+      };
     } catch (error) {
-      console.error("❌ Registration error:", error);
-      if (error.statusCode) throw error;
-      throw new Error(`Registration failed: ${error.message}`);
+      console.error("❌ AuthService register error:", error);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.internalServerError("Failed to register user");
     }
   }
 
   async login(email, password) {
     try {
-      console.log("🔐 Attempting login for:", email);
+      console.log("🔐 AuthService login - Attempting login for:", email);
 
       // Find user by email
-      const user = await this.repository.findByEmail(email);
-      if (!user) {
-        console.log("❌ User not found:", email);
-        const error = new Error("Invalid credentials");
-        error.statusCode = HTTP_STATUS.UNAUTHORIZED;
-        throw error;
-      }
+      const user = await this.usersRepository.findByEmail(email);
+      console.log("👤 User found:", user ? user.email : "none");
 
-      console.log("👤 User found:", user.email);
+      if (!user) {
+        throw AppError.unauthorized("Invalid email or password");
+      }
 
       // Verify password
-      const isValidPassword = await bcrypt.compare(password, user.password);
-      if (!isValidPassword) {
-        console.log("❌ Invalid password for:", email);
-        const error = new Error("Invalid credentials");
-        error.statusCode = HTTP_STATUS.UNAUTHORIZED;
-        throw error;
-      }
-
+      const isPasswordValid = await bcrypt.compare(password, user.password);
       console.log("✅ Password valid, generating tokens...");
 
+      if (!isPasswordValid) {
+        throw AppError.unauthorized("Invalid email or password");
+      }
+
       // Generate tokens
-      const tokens = this.generateTokens(user);
+      const jwtSecret = process.env.JWT_SECRET || "RAHASIAGMI";
+      const refreshSecret =
+        process.env.JWT_REFRESH_SECRET || "RAHASIAGMIREFRESH";
+      const expiresIn = process.env.JWT_EXPIRES_IN || "1d";
+
+      console.log("🔑 Generating tokens with config:", {
+        secretSet: !!jwtSecret,
+        refreshSecretSet: !!refreshSecret,
+        expiresIn,
+      });
+
+      const payload = {
+        userId: user.id, // PASTIKAN INI userId
+        email: user.email,
+        role: user.role,
+      };
+
+      const accessToken = jwt.sign(payload, jwtSecret, { expiresIn });
+      const refreshToken = jwt.sign(payload, refreshSecret, {
+        expiresIn: "7d",
+      });
 
       // Remove password from response
       const { password: _, ...userWithoutPassword } = user;
@@ -82,145 +117,116 @@ export class AuthService extends BaseService {
 
       return {
         user: userWithoutPassword,
-        ...tokens,
+        accessToken,
+        refreshToken,
+        expiresIn,
       };
     } catch (error) {
       console.error("❌ Login error:", error);
-      if (error.statusCode) throw error;
-      throw new Error(`Login failed: ${error.message}`);
-    }
-  }
-
-  async refreshToken(refreshToken) {
-    try {
-      const refreshSecret =
-        process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
-      const decoded = jwt.verify(refreshToken, refreshSecret);
-      const user = await this.repository.findById(decoded.userId);
-
-      if (!user) {
-        const error = new Error("Invalid refresh token");
-        error.statusCode = HTTP_STATUS.UNAUTHORIZED;
+      if (error instanceof AppError) {
         throw error;
       }
-
-      return this.generateTokens(user);
-    } catch (error) {
-      if (
-        error.name === "JsonWebTokenError" ||
-        error.name === "TokenExpiredError"
-      ) {
-        const tokenError = new Error("Invalid or expired refresh token");
-        tokenError.statusCode = HTTP_STATUS.UNAUTHORIZED;
-        throw tokenError;
-      }
-      throw error;
-    }
-  }
-
-  async changePassword(userId, currentPassword, newPassword) {
-    try {
-      const user = await this.repository.findById(userId);
-      if (!user) {
-        const error = new Error("User not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
-      }
-
-      // Verify current password
-      const isValidPassword = await bcrypt.compare(
-        currentPassword,
-        user.password
-      );
-      if (!isValidPassword) {
-        const error = new Error("Current password is incorrect");
-        error.statusCode = HTTP_STATUS.BAD_REQUEST;
-        throw error;
-      }
-
-      // Hash new password
-      const saltRounds = 12;
-      const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-
-      // Update password
-      await this.repository.update(userId, { password: hashedPassword });
-
-      return { message: "Password changed successfully" };
-    } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Password change failed: ${error.message}`);
+      throw AppError.internalServerError("Login failed");
     }
   }
 
   async getProfile(userId) {
     try {
-      const user = await this.repository.findById(userId);
+      console.log(
+        "👤 AuthService getProfile - Getting profile for userId:",
+        userId
+      );
+      console.log("👤 AuthService getProfile - Type of userId:", typeof userId);
+
+      const user = await this.usersRepository.findById(userId);
+      console.log(
+        "👤 Found user:",
+        user ? `${user.name} (${user.email})` : "none"
+      );
+
       if (!user) {
-        const error = new Error("User not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
+        throw AppError.notFound("User not found");
       }
 
       // Remove password from response
       const { password, ...userWithoutPassword } = user;
       return userWithoutPassword;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Get profile failed: ${error.message}`);
+      console.error("❌ AuthService getProfile error:", error);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.internalServerError("Failed to get user profile");
     }
   }
 
-  generateTokens(user) {
-    const payload = {
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    };
-
-    // Use fallback if JWT_REFRESH_SECRET not set
-    const jwtSecret = process.env.JWT_SECRET || "RAHASIAGMI";
-    const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || jwtSecret;
-    const jwtExpiresIn =
-      process.env.JWT_EXPIRES_IN || process.env.JWT_EXPIRES || "1d";
-    const jwtRefreshExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
-
-    console.log("🔑 Generating tokens with config:", {
-      secretSet: !!jwtSecret,
-      refreshSecretSet: !!jwtRefreshSecret,
-      expiresIn: jwtExpiresIn,
-    });
-
-    const accessToken = jwt.sign(payload, jwtSecret, {
-      expiresIn: jwtExpiresIn,
-    });
-
-    const refreshToken = jwt.sign(payload, jwtRefreshSecret, {
-      expiresIn: jwtRefreshExpiresIn,
-    });
-
-    return {
-      accessToken,
-      refreshToken,
-      expiresIn: jwtExpiresIn,
-    };
-  }
-
-  verifyToken(token) {
+  async refreshToken(refreshToken) {
     try {
-      const jwtSecret = process.env.JWT_SECRET || "RAHASIAGMI";
-      return jwt.verify(token, jwtSecret);
+      const refreshSecret =
+        process.env.JWT_REFRESH_SECRET || "RAHASIAGMIREFRESH";
+      const decoded = jwt.verify(refreshToken, refreshSecret);
+
+      // Generate new access token
+      const { accessToken } = this.generateTokens({
+        userId: decoded.userId,
+        email: decoded.email,
+        role: decoded.role,
+      });
+
+      return { accessToken, expiresIn: "1d" };
     } catch (error) {
-      if (error.name === "JsonWebTokenError") {
-        const tokenError = new Error("Invalid token");
-        tokenError.statusCode = HTTP_STATUS.UNAUTHORIZED;
-        throw tokenError;
-      }
       if (error.name === "TokenExpiredError") {
-        const tokenError = new Error("Token expired");
-        tokenError.statusCode = HTTP_STATUS.UNAUTHORIZED;
-        throw tokenError;
+        throw AppError.unauthorized("Refresh token has expired");
       }
-      throw error;
+      if (error.name === "JsonWebTokenError") {
+        throw AppError.unauthorized("Invalid refresh token");
+      }
+      throw AppError.unauthorized("Token refresh failed");
     }
+  }
+
+  async changePassword(userId, currentPassword, newPassword) {
+    try {
+      const user = await this.usersRepository.findById(userId);
+      if (!user) {
+        throw AppError.notFound("User not found");
+      }
+
+      // Verify current password
+      const isCurrentPasswordValid = await bcrypt.compare(
+        currentPassword,
+        user.password
+      );
+      if (!isCurrentPasswordValid) {
+        throw AppError.badRequest("Current password is incorrect");
+      }
+
+      // Hash new password
+      const saltRounds = 12;
+      const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+      // Update password
+      await this.usersRepository.update(userId, {
+        password: hashedNewPassword,
+      });
+
+      return { message: "Password changed successfully" };
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.internalServerError("Failed to change password");
+    }
+  }
+
+  generateTokens(payload) {
+    const jwtSecret = process.env.JWT_SECRET || "RAHASIAGMI";
+    const refreshSecret = process.env.JWT_REFRESH_SECRET || "RAHASIAGMIREFRESH";
+    const expiresIn = process.env.JWT_EXPIRES_IN || "1d";
+
+    const accessToken = jwt.sign(payload, jwtSecret, { expiresIn });
+    const refreshToken = jwt.sign(payload, refreshSecret, { expiresIn: "7d" });
+
+    return { accessToken, refreshToken };
   }
 }

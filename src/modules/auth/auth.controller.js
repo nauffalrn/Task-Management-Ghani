@@ -55,13 +55,74 @@ export const logout = async (req, res) => {
 
 export const getProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
+    // PERBAIKAN: Gunakan userId dari token, bukan id
+    const userId = req.user.userId; // UBAH DARI req.user.id KE req.user.userId
+    console.log("🎯 Controller getProfile - userId from token:", userId);
+
     const user = await authService.getProfile(userId);
 
     return res.status(200).json({
       status: "success",
       message: "Profile retrieved successfully",
       data: user,
+    });
+  } catch (error) {
+    console.error("❌ Controller getProfile error:", error);
+    return res.status(error.statusCode || 500).json({
+      status: "error",
+      message: error.message,
+    });
+  }
+};
+
+export const refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({
+        status: "error",
+        message: "Refresh token is required",
+      });
+    }
+
+    const result = await authService.refreshToken(refreshToken);
+
+    return res.status(200).json({
+      status: "success",
+      message: "Token refreshed successfully",
+      data: result,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 401).json({
+      status: "error",
+      message: error.message,
+    });
+  }
+};
+
+export const changePassword = async (req, res) => {
+  try {
+    const userId = req.user.userId; // UBAH DARI req.user.id KE req.user.userId
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        status: "error",
+        message: "Current password and new password are required",
+      });
+    }
+
+    const result = await authService.changePassword(
+      userId,
+      currentPassword,
+      newPassword
+    );
+
+    return res.status(200).json({
+      status: "success",
+      message: "Password changed successfully",
+      data: result,
     });
   } catch (error) {
     return res.status(error.statusCode || 500).json({

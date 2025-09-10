@@ -1,6 +1,13 @@
 import { Router } from "express";
-import { authenticateToken } from "../../common/middlewares/auth.js";
-import { register, login, logout, getProfile } from "./auth.controller.js";
+import {
+  register,
+  login,
+  logout,
+  refreshToken,
+  getProfile,
+  changePassword,
+} from "./auth.controller.js";
+import { authenticate } from "../../common/middlewares/auth.js";
 
 const router = Router();
 
@@ -13,10 +20,84 @@ const router = Router();
 
 /**
  * @swagger
+ * components:
+ *   schemas:
+ *     LoginRequest:
+ *       type: object
+ *       required:
+ *         - email
+ *         - password
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *           example: manager@gmi.com
+ *         password:
+ *           type: string
+ *           example: aaaaaaaa
+ *     LoginResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           example: success
+ *         message:
+ *           type: string
+ *           example: Login successful
+ *         data:
+ *           type: object
+ *           properties:
+ *             user:
+ *               $ref: '#/components/schemas/User'
+ *             accessToken:
+ *               type: string
+ *               example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *             refreshToken:
+ *               type: string
+ *               example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *             expiresIn:
+ *               type: string
+ *               example: 1d
+ */
+
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     tags: [Auth]
+ *     summary: User login
+ *     description: Authenticate user and return JWT tokens
+ *     security: []  # No auth required for login
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginRequest'
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       401:
+ *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post("/login", login);
+
+/**
+ * @swagger
  * /api/auth/register:
  *   post:
- *     summary: Register a new user
  *     tags: [Auth]
+ *     summary: Register new user
+ *     description: Register a new user account
+ *     security: []  # No auth required for registration
  *     requestBody:
  *       required: true
  *       content:
@@ -30,106 +111,33 @@ const router = Router();
  *             properties:
  *               name:
  *                 type: string
- *                 example: "John Doe"
+ *                 example: John Doe
  *               email:
  *                 type: string
  *                 format: email
- *                 example: "john@example.com"
+ *                 example: john@example.com
  *               password:
  *                 type: string
- *                 minLength: 6
- *                 example: "password123"
+ *                 example: password123
  *               role:
  *                 type: string
- *                 example: "staff_it"
+ *                 enum: [owner, manager, head_it, head_marketing, head_finance, staff_it, staff_marketing, staff_finance]
+ *                 example: staff_it
  *     responses:
  *       201:
  *         description: User registered successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: User registered successfully
- *                 data:
- *                   $ref: '#/components/schemas/User'
- *       400:
- *         $ref: '#/components/responses/UnauthorizedError'
  *       409:
  *         description: User already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post("/register", register);
 
 /**
  * @swagger
- * /api/auth/login:
- *   post:
- *     summary: Login user
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: "manager@gmi.com"
- *               password:
- *                 type: string
- *                 example: "aaaaaaaa"
- *     responses:
- *       200:
- *         description: Login successful
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/LoginResponse'
- *       401:
- *         description: Invalid credentials
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.post("/login", login);
-
-/**
- * @swagger
- * /api/auth/logout:
- *   post:
- *     summary: Logout user
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         $ref: '#/components/responses/SuccessResponse'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- */
-router.post("/logout", authenticateToken, logout);
-
-/**
- * @swagger
  * /api/auth/profile:
  *   get:
- *     summary: Get current user profile
  *     tags: [Auth]
+ *     summary: Get user profile
+ *     description: Get current user's profile information
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -149,37 +157,86 @@ router.post("/logout", authenticateToken, logout);
  *                 data:
  *                   $ref: '#/components/schemas/User'
  *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
+ *         description: Unauthorized
  */
-router.get("/profile", authenticateToken, getProfile);
+router.get("/profile", authenticate, getProfile);
 
 /**
  * @swagger
- * /api/auth/test:
- *   get:
- *     summary: Test auth routes
+ * /api/auth/refresh:
+ *   post:
  *     tags: [Auth]
+ *     summary: Refresh access token
+ *     description: Get new access token using refresh token
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *     responses:
  *       200:
- *         description: Auth routes working
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: Auth routes working
+ *         description: Token refreshed successfully
+ *       401:
+ *         description: Invalid refresh token
  */
-router.get("/test", (req, res) => {
-  res.json({
-    status: "success",
-    message: "Auth routes working",
-    timestamp: new Date().toISOString(),
-  });
-});
+router.post("/refresh", refreshToken);
+
+/**
+ * @swagger
+ * /api/auth/change-password:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Change password
+ *     description: Change user's password
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 example: oldpassword123
+ *               newPassword:
+ *                 type: string
+ *                 example: newpassword123
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       400:
+ *         description: Current password is incorrect
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/change-password", authenticate, changePassword);
+
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     tags: [Auth]
+ *     summary: User logout
+ *     description: Logout user (client-side token removal)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ */
+router.post("/logout", authenticate, logout);
 
 export default router;
