@@ -61,7 +61,7 @@ app.use("/api/logs", logsRoutes);
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "success",
-    message: "GMI Task Management API is running",
+    message: "Ghani Task Management API is running",
     timestamp: new Date().toISOString(),
     version: "1.0.0",
     environment: process.env.NODE_ENV || "development",
@@ -72,7 +72,7 @@ app.get("/health", (req, res) => {
 app.get("/api", (req, res) => {
   res.status(200).json({
     status: "success",
-    message: "GMI Task Management API",
+    message: "Ghani Task Management API",
     version: "1.0.0",
     documentation: "/api-docs",
     endpoints: {
