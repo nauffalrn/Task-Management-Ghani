@@ -39,6 +39,33 @@ const router = Router();
  *                 type: string
  *                 minLength: 6
  *                 example: "password123"
+ *               role:
+ *                 type: string
+ *                 example: "staff_it"
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: User registered successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       409:
+ *         description: User already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post("/register", register);
 
@@ -61,16 +88,29 @@ router.post("/register", register);
  *               email:
  *                 type: string
  *                 format: email
- *                 example: "john@example.com"
+ *                 example: "manager@gmi.com"
  *               password:
  *                 type: string
- *                 example: "password123"
+ *                 example: "aaaaaaaa"
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       401:
+ *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post("/login", login);
 
 /**
  * @swagger
- * /auth/logout:
+ * /api/auth/logout:
  *   post:
  *     summary: Logout user
  *     tags: [Auth]
@@ -86,7 +126,7 @@ router.post("/logout", authenticateToken, logout);
 
 /**
  * @swagger
- * /auth/profile:
+ * /api/auth/profile:
  *   get:
  *     summary: Get current user profile
  *     tags: [Auth]
@@ -113,7 +153,27 @@ router.post("/logout", authenticateToken, logout);
  */
 router.get("/profile", authenticateToken, getProfile);
 
-// Test endpoint untuk debug
+/**
+ * @swagger
+ * /api/auth/test:
+ *   get:
+ *     summary: Test auth routes
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Auth routes working
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Auth routes working
+ */
 router.get("/test", (req, res) => {
   res.json({
     status: "success",
