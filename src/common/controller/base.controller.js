@@ -27,8 +27,8 @@ export class BaseController {
       };
 
       return ResponseHelper.successWithPagination(
-        res, 
-        result.data, 
+        res,
+        result.data,
         pagination,
         `${this.entityName}s retrieved successfully`
       );
@@ -46,7 +46,11 @@ export class BaseController {
         return ResponseHelper.notFound(res, `${this.entityName} not found`);
       }
 
-      return ResponseHelper.success(res, result, `${this.entityName} retrieved successfully`);
+      return ResponseHelper.success(
+        res,
+        result,
+        `${this.entityName} retrieved successfully`
+      );
     } catch (error) {
       next(error);
     }
@@ -55,7 +59,11 @@ export class BaseController {
   async create(req, res, next) {
     try {
       const result = await this.service.create(req.body);
-      return ResponseHelper.created(res, result, `${this.entityName} created successfully`);
+      return ResponseHelper.created(
+        res,
+        result,
+        `${this.entityName} created successfully`
+      );
     } catch (error) {
       next(error);
     }
@@ -70,7 +78,11 @@ export class BaseController {
         return ResponseHelper.notFound(res, `${this.entityName} not found`);
       }
 
-      return ResponseHelper.success(res, result, `${this.entityName} updated successfully`);
+      return ResponseHelper.success(
+        res,
+        result,
+        `${this.entityName} updated successfully`
+      );
     } catch (error) {
       next(error);
     }
@@ -85,9 +97,56 @@ export class BaseController {
         return ResponseHelper.notFound(res, `${this.entityName} not found`);
       }
 
-      return ResponseHelper.success(res, null, `${this.entityName} deleted successfully`);
+      return ResponseHelper.success(
+        res,
+        null,
+        `${this.entityName} deleted successfully`
+      );
     } catch (error) {
       next(error);
     }
+  }
+
+  sendSuccessResponse(
+    res,
+    message,
+    data = null,
+    pagination = null,
+    statusCode = 200
+  ) {
+    const response = {
+      status: "success",
+      message,
+    };
+
+    if (data !== null) {
+      response.data = data;
+    }
+
+    if (pagination) {
+      response.pagination = pagination;
+    }
+
+    return res.status(statusCode).json(response);
+  }
+
+  sendErrorResponse(res, message, statusCode = 500, errors = null) {
+    const response = {
+      status: "error",
+      message,
+    };
+
+    if (errors) {
+      response.errors = errors;
+    }
+
+    return res.status(statusCode).json(response);
+  }
+
+  sendFailResponse(res, message, statusCode = 400) {
+    return res.status(statusCode).json({
+      status: "fail",
+      message,
+    });
   }
 }

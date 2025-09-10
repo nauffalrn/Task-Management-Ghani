@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticateToken } from "../../common/middlewares/auth.js";
-import { login, register, logout, getProfile } from "./auth.controller.js";
+import { register, login, logout, getProfile } from "./auth.controller.js";
 
 const router = Router();
 
@@ -13,7 +13,7 @@ const router = Router();
 
 /**
  * @swagger
- * /auth/register:
+ * /api/auth/register:
  *   post:
  *     summary: Register a new user
  *     tags: [Auth]
@@ -22,28 +22,29 @@ const router = Router();
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/RegisterRequest'
- *     responses:
- *       201:
- *         description: User registered successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/LoginResponse'
- *       400:
- *         $ref: '#/components/responses/ValidationError'
- *       409:
- *         description: Email already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "John Doe"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *                 example: "password123"
  */
 router.post("/register", register);
 
 /**
  * @swagger
- * /auth/login:
+ * /api/auth/login:
  *   post:
  *     summary: Login user
  *     tags: [Auth]
@@ -52,22 +53,18 @@ router.post("/register", register);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/LoginRequest'
- *     responses:
- *       200:
- *         description: Login successful
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/LoginResponse'
- *       400:
- *         $ref: '#/components/responses/ValidationError'
- *       401:
- *         description: Invalid credentials
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ *               password:
+ *                 type: string
+ *                 example: "password123"
  */
 router.post("/login", login);
 
@@ -115,5 +112,14 @@ router.post("/logout", authenticateToken, logout);
  *         $ref: '#/components/responses/UnauthorizedError'
  */
 router.get("/profile", authenticateToken, getProfile);
+
+// Test endpoint untuk debug
+router.get("/test", (req, res) => {
+  res.json({
+    status: "success",
+    message: "Auth routes working",
+    timestamp: new Date().toISOString(),
+  });
+});
 
 export default router;

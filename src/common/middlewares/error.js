@@ -3,6 +3,13 @@ import { HTTP_STATUS } from "../constants/app.js";
 import { logger } from "../utils/logger.js";
 import { AppError } from "../utils/appError.js";
 
+export const notFoundHandler = (req, res, next) => {
+  res.status(404).json({
+    status: "fail",
+    message: `Route ${req.method} ${req.originalUrl} not found`,
+  });
+};
+
 export const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
@@ -89,11 +96,6 @@ export const errorHandler = (err, req, res, next) => {
       error: err,
     }),
   });
-};
-
-export const notFoundHandler = (req, res, next) => {
-  const error = AppError.notFound(`Route ${req.originalUrl} not found`);
-  next(error);
 };
 
 // Async wrapper untuk handle async errors

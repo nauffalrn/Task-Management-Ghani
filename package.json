@@ -3,17 +3,10 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "build": "echo 'No build process needed for Node.js'",
-    "test": "echo 'No tests specified'",
-    "lint": "echo 'No linting configured'",
-    "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push",
-    "db:drop": "drizzle-kit drop",
-    "db:studio": "drizzle-kit studio",
-    "db:migrate": "drizzle-kit migrate",
-    "db:reset": "node scripts/reset.js",
-    "db:seed": "node scripts/seed.js",
-    "db:fresh": "npm run db:reset && npm run db:seed"
+    "reset": "node scripts/reset.js",
+    "migrate": "node scripts/migrate.js",
+    "seed": "node scripts/seed.js",
+    "fresh": "npm run reset && npm run migrate && npm run seed"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

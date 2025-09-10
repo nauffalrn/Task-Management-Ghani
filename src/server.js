@@ -1,14 +1,21 @@
-import app from "./app.js";
 import dotenv from "dotenv";
-
 dotenv.config();
+
+import app from "./app.js";
+import { testConnection } from "./config/test-db.js";
 
 const PORT = process.env.PORT || 5000;
 
+// Test database connection
+testConnection();
+
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(`🔗 Database: ${process.env.DB_NAME}`);
+  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
+  console.log(`💚 Health Check: http://localhost:${PORT}/health`);
+  console.log(`🔐 Auth Endpoints:`);
+  console.log(`   POST http://localhost:${PORT}/api/auth/register`);
+  console.log(`   POST http://localhost:${PORT}/api/auth/login`);
 });
 
 // Graceful shutdown

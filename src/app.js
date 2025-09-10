@@ -53,6 +53,12 @@ app.get("/logo.png", (req, res) => {
 // Swagger UI
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs, swaggerOptions));
 
+// Add debug middleware before API routes
+app.use((req, res, next) => {
+  console.log(`🔍 ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
