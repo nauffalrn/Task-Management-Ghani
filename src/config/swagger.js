@@ -2,6 +2,8 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
+import fs from "fs";
+import path from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -14,10 +16,6 @@ const options = {
       version: "1.0.0",
       description:
         "A comprehensive task management system API with role-based access control",
-      contact: {
-        name: "API Support",
-        email: "support@gmi.com",
-      },
     },
     servers: [
       {
@@ -362,15 +360,31 @@ const options = {
 
 const specs = swaggerJsdoc(options);
 
-// SIMPLE SWAGGER OPTIONS - NO CUSTOM CSS
+// Load CSS theme baru
+const newThemePath = path.join(__dirname, "../../public/swagger/new-theme.css");
+let customCss = "";
+
+try {
+  customCss = fs.readFileSync(newThemePath, "utf8");
+  console.log("✅ Loaded new Swagger theme successfully");
+} catch (error) {
+  console.log("❌ Could not load new theme, using default");
+}
+
+// Swagger options dengan theme baru
 const swaggerOptions = {
-  customSiteTitle: "Task Management API Documentation",
+  customCss,
+  customSiteTitle: "GMI Task Management API - Documentation",
+  customfavIcon: "/logo.png",
   swaggerOptions: {
-    persistAuthorization: true, // PENTING: Persist auth state
+    persistAuthorization: true,
     docExpansion: "none",
-    filter: true,
+    filter: false,
     showRequestDuration: true,
     tryItOutEnabled: true,
+    defaultModelsExpandDepth: 2,
+    defaultModelExpandDepth: 2,
+    displayRequestDuration: true,
   },
 };
 

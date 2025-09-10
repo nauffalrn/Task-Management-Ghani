@@ -103,7 +103,7 @@ export const refreshToken = async (req, res) => {
 
 export const changePassword = async (req, res) => {
   try {
-    const userId = req.user.userId; // UBAH DARI req.user.id KE req.user.userId
+    const userId = req.user.userId;
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
