@@ -1,5 +1,6 @@
 import { BaseController } from "../../common/controller/base.controller.js";
 import { UsersService } from "./users.service.js";
+import { ResponseHelper } from "../../common/utils/response.helper.js"; // UBAH: Import ResponseHelper class
 
 class UsersController extends BaseController {
   constructor() {
@@ -7,98 +8,113 @@ class UsersController extends BaseController {
     this.usersService = new UsersService();
   }
 
-  getUsers = async (req, res) => {
+  // GET /api/users - List all users
+  getUsers = async (req, res, next) => {
     try {
-      const { page = 1, limit = 10 } = req.query;
-      const users = await this.usersService.getUsers({ page, limit });
+      const { page = 1, limit = 10, search, role } = req.query;
 
-      return res.status(200).json({
-        status: "success",
-        message: "Users retrieved successfully",
-        data: users,
+      const users = await this.usersService.getAllUsers({
+        page: parseInt(page),
+        limit: parseInt(limit),
+        search,
+        role,
       });
+
+      return ResponseHelper.success(res, users, "Users retrieved successfully"); // UBAH: ResponseHelper.success
     } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        status: "error",
-        message: error.message,
-      });
+      next(error);
     }
   };
 
-  getUserById = async (req, res) => {
+  // GET /api/users/:id - Get user by ID
+  getUserById = async (req, res, next) => {
     try {
       const { id } = req.params;
       const user = await this.usersService.getUserById(id);
 
-      return res.status(200).json({
-        status: "success",
-        message: "User retrieved successfully",
-        data: user,
-      });
+      return ResponseHelper.success(res, user, "User retrieved successfully"); // UBAH: ResponseHelper.success
     } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        status: "error",
-        message: error.message,
-      });
+      next(error);
     }
   };
 
-  createUser = async (req, res) => {
-    try {
-      const userData = req.body;
-      const newUser = await this.usersService.createUser(userData);
-
-      return res.status(201).json({
-        status: "success",
-        message: "User created successfully",
-        data: newUser,
-      });
-    } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        status: "error",
-        message: error.message,
-      });
-    }
-  };
-
-  updateUser = async (req, res) => {
+  // PUT /api/users/:id - Update user
+  updateUser = async (req, res, next) => {
     try {
       const { id } = req.params;
-      const userData = req.body;
-      const updatedUser = await this.usersService.updateUser(id, userData);
+      const updateData = req.body;
 
-      return res.status(200).json({
-        status: "success",
-        message: "User updated successfully",
-        data: updatedUser,
-      });
+      const user = await this.usersService.updateUser(id, updateData);
+
+      return ResponseHelper.success(res, user, "User updated successfully"); // UBAH: ResponseHelper.success
     } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        status: "error",
-        message: error.message,
-      });
+      next(error);
     }
   };
 
-  deleteUser = async (req, res) => {
+  // DELETE /api/users/:id - Delete user
+  deleteUser = async (req, res, next) => {
     try {
       const { id } = req.params;
       await this.usersService.deleteUser(id);
 
-      return res.status(200).json({
-        status: "success",
-        message: "User deleted successfully",
-      });
+      return ResponseHelper.success(res, null, "User deleted successfully"); // UBAH: ResponseHelper.success
     } catch (error) {
-      return res.status(error.statusCode || 500).json({
-        status: "error",
-        message: error.message,
-      });
+      next(error);
+    }
+  };
+
+  // GET /api/users/profile - Get current user profile
+  getProfile = async (req, res, next) => {
+    try {
+      const userId = req.user.userId;
+      const user = await this.usersService.getUserById(userId);
+
+      return ResponseHelper.success(
+        res,
+        user,
+        "Profile retrieved successfully"
+      ); // UBAH: ResponseHelper.success
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // PUT /api/users/profile - Update current user profile
+  updateProfile = async (req, res, next) => {
+    try {
+      const userId = req.user.userId;
+      const updateData = req.body;
+
+      const user = await this.usersService.updateUser(userId, updateData);
+
+      return ResponseHelper.success(res, user, "Profile updated successfully"); // UBAH: ResponseHelper.success
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // TAMBAH: Method createUser yang diperlukan routes
+  createUser = async (req, res, next) => {
+    try {
+      const userData = req.body;
+
+      // Create user logic - bisa menggunakan auth service atau buat method baru di users service
+      const user = await this.usersService.createUser(userData);
+
+      return ResponseHelper.created(res, user, "User created successfully");
+    } catch (error) {
+      next(error);
     }
   };
 }
 
-const usersController = new UsersController();
+export const usersController = new UsersController();
+export { UsersController };
 
-export const { getUsers, getUserById, createUser, updateUser, deleteUser } =
-  usersController;
+// TAMBAH: Export individual methods untuk routes
+export const getUsers = usersController.getUsers;
+export const getUserById = usersController.getUserById;
+export const createUser = usersController.createUser;
+export const updateUser = usersController.updateUser;
+export const deleteUser = usersController.deleteUser;

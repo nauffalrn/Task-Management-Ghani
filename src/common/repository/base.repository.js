@@ -1,75 +1,100 @@
 import { db } from "../../config/db.js";
+import { eq } from "drizzle-orm"; // TAMBAH: Import eq yang hilang
 
 export class BaseRepository {
-  constructor(tableName) {
-    this.tableName = tableName;
-    this.db = db;
+  constructor(table) {
+    this.table = table;
+    this.db = db; // PERBAIKAN: Gunakan db instance yang benar
   }
 
   async findById(id) {
     try {
-      console.log("🔍 BaseRepo findById - DB type:", typeof this.db);
-      console.log("🔍 BaseRepo findById - DB query:", typeof this.db.query);
+      console.log(`🔍 BaseRepository findById - ID: ${id}`);
 
-      const query = `SELECT * FROM ${this.tableName} WHERE id = $1`;
-      const result = await this.db.query(query, [id]);
-      return result.rows[0] || null;
-    } catch (error) {
-      console.error("❌ BaseRepo findById error:", error);
-      throw new Error(
-        `Failed to find ${this.tableName} by id: ${error.message}`
+      // PERBAIKAN: Gunakan Drizzle ORM dengan benar
+      const result = await this.db
+        .select()
+        .from(this.table)
+        .where(eq(this.table.id, id))
+        .limit(1);
+
+      console.log(
+        "✅ BaseRepository findById - Result:",
+        result.length > 0 ? "Found" : "Not found"
       );
+      return result.length > 0 ? result[0] : null;
+    } catch (error) {
+      console.error("❌ BaseRepository findById error:", error);
+      throw error;
     }
   }
 
   async create(data) {
     try {
-      const keys = Object.keys(data);
-      const values = Object.values(data);
-      const placeholders = keys.map((_, index) => `$${index + 1}`).join(", ");
+      console.log("📝 BaseRepository create - Data:", data);
 
-      const query = `
-        INSERT INTO ${this.tableName} (${keys.join(", ")})
-        VALUES (${placeholders})
-        RETURNING *
-      `;
+      const result = await this.db.insert(this.table).values(data).returning();
 
-      const result = await this.db.query(query, values);
-      return result.rows[0];
+      console.log("✅ BaseRepository create - Created:", result[0]?.id);
+      return result[0];
     } catch (error) {
-      throw new Error(`Failed to create ${this.tableName}: ${error.message}`);
+      console.error("❌ BaseRepository create error:", error);
+      throw error;
     }
   }
 
   async update(id, data) {
     try {
-      const keys = Object.keys(data);
-      const values = Object.values(data);
-      const setClause = keys
-        .map((key, index) => `${key} = $${index + 1}`)
-        .join(", ");
+      console.log("🔄 BaseRepository update - ID:", id, "Data:", data);
 
-      const query = `
-        UPDATE ${this.tableName}
-        SET ${setClause}
-        WHERE id = $${keys.length + 1}
-        RETURNING *
-      `;
+      const result = await this.db
+        .update(this.table)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(this.table.id, id))
+        .returning();
 
-      const result = await this.db.query(query, [...values, id]);
-      return result.rows[0] || null;
+      console.log("✅ BaseRepository update - Updated:", result[0]?.id);
+      return result[0];
     } catch (error) {
-      throw new Error(`Failed to update ${this.tableName}: ${error.message}`);
+      console.error("❌ BaseRepository update error:", error);
+      throw error;
     }
   }
 
   async delete(id) {
     try {
-      const query = `DELETE FROM ${this.tableName} WHERE id = $1 RETURNING *`;
-      const result = await this.db.query(query, [id]);
-      return result.rows[0] || null;
+      console.log("🗑️ BaseRepository delete - ID:", id);
+
+      const result = await this.db
+        .delete(this.table)
+        .where(eq(this.table.id, id))
+        .returning();
+
+      console.log("✅ BaseRepository delete - Deleted:", result[0]?.id);
+      return result[0];
     } catch (error) {
-      throw new Error(`Failed to delete ${this.tableName}: ${error.message}`);
+      console.error("❌ BaseRepository delete error:", error);
+      throw error;
+    }
+  }
+
+  async findAll(options = {}) {
+    try {
+      const { limit = 10, offset = 0 } = options;
+
+      console.log("🔍 BaseRepository findAll - Options:", options);
+
+      const result = await this.db
+        .select()
+        .from(this.table)
+        .limit(limit)
+        .offset(offset);
+
+      console.log("✅ BaseRepository findAll - Found:", result.length);
+      return result;
+    } catch (error) {
+      console.error("❌ BaseRepository findAll error:", error);
+      throw error;
     }
   }
 }

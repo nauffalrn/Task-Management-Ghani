@@ -33,69 +33,64 @@ export const authenticate = async (req, res, next) => {
       );
     }
 
-    const token = authHeader.substring(7); // Remove "Bearer "
-    console.log("🎫 Extracted Token Length:", token.length);
-    console.log("🎫 Token Preview:", token.substring(0, 50) + "...");
-    console.log("🎫 Token End:", "..." + token.substring(token.length - 10));
+    // PERBAIKAN: Extract token dengan benar
+    let token = authHeader.substring(7); // Remove 'Bearer '
+    console.log("🎫 Token Before Cleanup:", token);
 
-    if (!token || token.trim() === "") {
-      console.log("❌ Empty token after extraction");
-      throw AppError.unauthorized("Access token is required");
+    // TAMBAH: Bersihkan token dari refreshToken atau karakter tambahan
+    if (token.includes(",")) {
+      token = token.split(",")[0].trim(); // Ambil bagian pertama sebelum koma
+      console.log("🧹 Token After Comma Split:", token);
     }
 
-    // Verify token
-    const jwtSecret = process.env.JWT_SECRET || "RAHASIAGMI";
-    console.log("🔑 JWT Secret exists:", !!jwtSecret);
-    console.log("🔑 JWT Secret preview:", jwtSecret.substring(0, 5) + "...");
+    if (token.includes('"')) {
+      token = token.replace(/"/g, ""); // Hapus semua quotes
+      console.log("🧹 Token After Quote Removal:", token);
+    }
 
-    console.log("🔍 Attempting to verify token...");
-    const decoded = jwt.verify(token, jwtSecret);
+    // TAMBAH: Validasi format token JWT (3 bagian dipisah titik)
+    const tokenParts = token.split(".");
+    if (tokenParts.length !== 3) {
+      console.log("❌ Invalid JWT format - parts count:", tokenParts.length);
+      console.log("❌ Token parts:", tokenParts);
+      throw AppError.unauthorized("Invalid token format");
+    }
 
-    console.log("✅ Token decoded successfully!");
-    console.log("👤 Decoded payload:", {
+    console.log("🎫 Final Clean Token:", token);
+    console.log("🎫 Token Length:", token.length);
+
+    // Verify JWT
+    console.log("🔑 JWT Secret exists:", !!process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("✅ Token verified successfully");
+    console.log("👤 Decoded user:", {
       userId: decoded.userId,
       email: decoded.email,
       role: decoded.role,
-      iat: new Date(decoded.iat * 1000).toISOString(),
-      exp: new Date(decoded.exp * 1000).toISOString(),
-      isExpired: decoded.exp < Math.floor(Date.now() / 1000),
     });
 
+    // Add user to request
     req.user = decoded;
-    console.log("✅ AUTH MIDDLEWARE SUCCESS - proceeding to next middleware");
-    console.log("🔐 =================================");
     next();
   } catch (error) {
     console.log("❌ =================================");
     console.log("❌ AUTH MIDDLEWARE ERROR");
     console.log("❌ =================================");
-    console.error("❌ Error type:", error.constructor.name);
-    console.error("❌ Error message:", error.message);
-    console.error("❌ Error stack:", error.stack);
-
-    if (error.name === "TokenExpiredError") {
-      console.log("❌ Token has expired");
-      throw AppError.unauthorized("Token has expired");
-    }
+    console.log("❌ Error type:", error.name);
+    console.log("❌ Error message:", error.message);
+    console.log("❌ Error stack:", error.stack);
 
     if (error.name === "JsonWebTokenError") {
       console.log("❌ JWT verification failed");
-      throw AppError.unauthorized("Invalid token format");
+      return next(AppError.unauthorized("Invalid token format"));
     }
 
-    if (error.name === "NotBeforeError") {
-      console.log("❌ Token not active yet");
-      throw AppError.unauthorized("Token not active yet");
+    if (error.name === "TokenExpiredError") {
+      console.log("❌ JWT token expired");
+      return next(AppError.unauthorized("Token expired"));
     }
 
-    // Re-throw if it's already an AppError
-    if (error instanceof AppError) {
-      throw error;
-    }
-
-    // Generic error
-    console.log("❌ Generic auth error");
-    throw AppError.unauthorized("Authentication failed");
+    next(error);
   }
 };
 

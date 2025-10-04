@@ -1,53 +1,44 @@
 import { db } from "./db.js";
+import { users } from "../../drizzle/schema.js";
+import { desc } from "drizzle-orm";
 
-async function testConnection() {
+export const testDatabaseConnection = async () => {
   try {
     console.log("🧪 Testing database connection...");
-    console.log("🔍 DB config:", {
-      host: process.env.DB_HOST,
-      port: process.env.DB_PORT,
-      user: process.env.DB_USER,
-      database: process.env.DB_NAME,
+
+    const dbConfig = {
+      host: process.env.DB_HOST || "localhost",
+      port: process.env.DB_PORT || "5432",
+      user: process.env.DB_USER || "postgres",
+      database: process.env.DB_NAME || "task_management_db",
       passwordSet: !!process.env.DB_PASSWORD,
-    });
+    };
 
-    const result = await db.query("SELECT NOW() as current_time");
+    console.log("🔍 DB config:", dbConfig);
+
+    // PERBAIKAN: Gunakan Drizzle ORM untuk test query
+    const result = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+      })
+      .from(users)
+      .orderBy(desc(users.createdAt))
+      .limit(3);
+
     console.log("✅ Database connected successfully!");
-    console.log("⏰ Current time:", result.rows[0].current_time);
+    console.log("⏰ Current time:", new Date().toISOString());
+    console.log("👥 Users in database:", result.length);
+    console.log("👤 Sample users:", result);
 
-    // Check if users table exists
-    try {
-      const tableCheck = await db.query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = 'users'
-        );
-      `);
-
-      if (tableCheck.rows[0].exists) {
-        const usersTest = await db.query(
-          "SELECT COUNT(*) as user_count FROM users"
-        );
-        console.log("👥 Users in database:", usersTest.rows[0].user_count);
-
-        // Show sample users
-        const sampleUsers = await db.query(
-          "SELECT id, name, email, role FROM users LIMIT 3"
-        );
-        console.log("👤 Sample users:", sampleUsers.rows);
-      } else {
-        console.log("⚠️ Users table does not exist. Need to run migrations.");
-      }
-    } catch (tableError) {
-      console.log("⚠️ Could not check users table:", tableError.message);
-    }
+    return true;
   } catch (error) {
     console.error("❌ Database connection failed:", error.message);
-    console.error(
+    console.log(
       "💡 Check if PostgreSQL is running and credentials are correct"
     );
+    return false;
   }
-}
-
-export { testConnection };
+};

@@ -1,173 +1,136 @@
 import { BaseRepository } from "../../common/repository/base.repository.js";
-import { db } from "../../config/db.js";
+import { users } from "../../../drizzle/schema.js";
+import { eq, like, or, and, desc } from "drizzle-orm";
 
 export class UsersRepository extends BaseRepository {
   constructor() {
-    super("users");
-    // Override db connection untuk memastikan
-    this.db = db;
+    super(users);
   }
 
+  // PERBAIKAN: Method findMany dengan Drizzle ORM yang benar
+  async findMany(options = {}) {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        search,
+        role,
+        excludeFields = [],
+      } = options;
+
+      console.log("🔍 UsersRepo findMany - Options:", options);
+
+      const offset = (page - 1) * limit;
+
+      // Build where conditions
+      let whereConditions = [];
+
+      if (search) {
+        whereConditions.push(
+          or(like(users.name, `%${search}%`), like(users.email, `%${search}%`))
+        );
+      }
+
+      if (role) {
+        whereConditions.push(eq(users.role, role));
+      }
+
+      const whereClause =
+        whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+      // PERBAIKAN: Build select fields dengan benar
+      const selectFields = {};
+
+      // Define all available fields
+      const fieldMapping = {
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        password: users.password,
+        role: users.role,
+        created_at: users.createdAt,
+        updated_at: users.updatedAt,
+      };
+
+      // Include fields that are not excluded
+      Object.keys(fieldMapping).forEach((field) => {
+        if (!excludeFields.includes(field)) {
+          selectFields[field] = fieldMapping[field];
+        }
+      });
+
+      console.log("🔍 Select fields:", Object.keys(selectFields));
+
+      // PERBAIKAN: Build query dengan Drizzle ORM
+      let query = this.db
+        .select(selectFields)
+        .from(users)
+        .limit(limit)
+        .offset(offset)
+        .orderBy(desc(users.createdAt));
+
+      if (whereClause) {
+        query = query.where(whereClause);
+      }
+
+      console.log("📝 Executing query...");
+      const result = await query;
+
+      console.log("✅ UsersRepo findMany - Found:", result.length);
+      return result;
+    } catch (error) {
+      console.error("❌ UsersRepo findMany error:", error);
+      throw error;
+    }
+  }
+
+  // PERBAIKAN: Find user by email dengan Drizzle ORM
   async findByEmail(email) {
     try {
       console.log("🔍 UsersRepo findByEmail - Finding user with email:", email);
-      console.log("🔍 UsersRepo findByEmail - DB type:", typeof this.db);
-      console.log(
-        "🔍 UsersRepo findByEmail - DB query method:",
-        typeof this.db.query
-      );
 
-      const query = `
-        SELECT id, name, email, password, role, created_at, updated_at 
-        FROM users 
-        WHERE email = $1 
-        LIMIT 1
-      `;
+      const result = await this.db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
 
-      console.log("📝 Query:", query);
-      console.log("📋 Params:", [email]);
-
-      const result = await this.db.query(query, [email]);
-
-      console.log("✅ Query result:", result.rows);
-
-      return result.rows[0] || null;
+      console.log("✅ Query result length:", result.length);
+      return result.length > 0 ? result[0] : null;
     } catch (error) {
-      console.error("❌ UsersRepo findByEmail error:", error);
-      throw new Error(`Failed to find user by email: ${error.message}`);
+      console.error("❌ Database query error:", error);
+      throw error;
     }
   }
 
-  async findById(id) {
+  // PERBAIKAN: Search users dengan Drizzle ORM
+  async searchUsers(query, options = {}) {
     try {
-      const query = `
-        SELECT id, name, email, password, role, created_at, updated_at 
-        FROM users 
-        WHERE id = $1 
-        LIMIT 1
-      `;
+      const { limit = 10 } = options;
 
-      const result = await this.db.query(query, [id]);
-      return result.rows[0] || null;
+      console.log("🔍 UsersRepo searchUsers - Query:", query);
+
+      const result = await this.db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          created_at: users.createdAt,
+          updated_at: users.updatedAt,
+        })
+        .from(users)
+        .where(
+          or(like(users.name, `%${query}%`), like(users.email, `%${query}%`))
+        )
+        .limit(limit)
+        .orderBy(desc(users.createdAt));
+
+      console.log("✅ UsersRepo searchUsers - Found:", result.length);
+      return result;
     } catch (error) {
-      throw new Error(`Failed to find user by id: ${error.message}`);
-    }
-  }
-
-  async create(userData) {
-    try {
-      const query = `
-        INSERT INTO users (name, email, password, role)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, name, email, role, created_at, updated_at
-      `;
-
-      const values = [
-        userData.name,
-        userData.email,
-        userData.password,
-        userData.role || "staff_it",
-      ];
-
-      const result = await this.db.query(query, values);
-      return result.rows[0];
-    } catch (error) {
-      throw new Error(`Failed to create user: ${error.message}`);
-    }
-  }
-
-  async update(id, userData) {
-    try {
-      const fields = [];
-      const values = [];
-      let paramCount = 1;
-
-      if (userData.name) {
-        fields.push(`name = $${paramCount}`);
-        values.push(userData.name);
-        paramCount++;
-      }
-
-      if (userData.email) {
-        fields.push(`email = $${paramCount}`);
-        values.push(userData.email);
-        paramCount++;
-      }
-
-      if (userData.password) {
-        fields.push(`password = $${paramCount}`);
-        values.push(userData.password);
-        paramCount++;
-      }
-
-      if (userData.role) {
-        fields.push(`role = $${paramCount}`);
-        values.push(userData.role);
-        paramCount++;
-      }
-
-      if (fields.length === 0) {
-        throw new Error("No fields to update");
-      }
-
-      values.push(id);
-      const query = `
-        UPDATE users 
-        SET ${fields.join(", ")}, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $${paramCount}
-        RETURNING id, name, email, role, created_at, updated_at
-      `;
-
-      const result = await this.db.query(query, values);
-      return result.rows[0] || null;
-    } catch (error) {
-      throw new Error(`Failed to update user: ${error.message}`);
-    }
-  }
-
-  async delete(id) {
-    try {
-      const query = "DELETE FROM users WHERE id = $1 RETURNING id";
-      const result = await this.db.query(query, [id]);
-      return result.rows[0] || null;
-    } catch (error) {
-      throw new Error(`Failed to delete user: ${error.message}`);
-    }
-  }
-
-  async getAll({ limit = 10, offset = 0, search = "" } = {}) {
-    try {
-      let whereClause = "";
-      let values = [];
-      let paramCount = 1;
-
-      if (search) {
-        whereClause = `WHERE name ILIKE $${paramCount} OR email ILIKE $${paramCount}`;
-        values.push(`%${search}%`);
-        paramCount++;
-      }
-
-      const countQuery = `SELECT COUNT(*) FROM users ${whereClause}`;
-      const countResult = await this.db.query(countQuery, values);
-      const total = parseInt(countResult.rows[0].count);
-
-      values.push(limit, offset);
-      const dataQuery = `
-        SELECT id, name, email, role, created_at, updated_at 
-        FROM users 
-        ${whereClause}
-        ORDER BY created_at DESC 
-        LIMIT $${paramCount} OFFSET $${paramCount + 1}
-      `;
-
-      const dataResult = await this.db.query(dataQuery, values);
-
-      return {
-        data: dataResult.rows,
-        total,
-      };
-    } catch (error) {
-      throw new Error(`Failed to get users: ${error.message}`);
+      console.error("❌ UsersRepo searchUsers error:", error);
+      throw error;
     }
   }
 }
