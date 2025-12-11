@@ -1,17 +1,15 @@
 import { Router } from "express";
-import { authenticateToken } from "../../common/middlewares/auth.js";
+import { authenticate, authorize } from "../../common/middlewares/auth.js";
 import {
-  getTaskComments,
+  getComments,
   getCommentById,
   createComment,
   updateComment,
   deleteComment,
+  getCommentsByTask,
 } from "./comments.controller.js";
 
 const router = Router();
-
-// All routes require authentication
-router.use(authenticateToken);
 
 /**
  * @swagger
@@ -22,10 +20,61 @@ router.use(authenticateToken);
 
 /**
  * @swagger
- * /comments/task/{taskId}:
+ * /api/comments:
  *   get:
- *     summary: Get all comments for a task
  *     tags: [Comments]
+ *     summary: Get all comments
+ *     description: Retrieve a list of all comments
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of comments per page
+ *       - in: query
+ *         name: taskId
+ *         schema:
+ *           type: integer
+ *         description: Filter by task ID
+ *     responses:
+ *       200:
+ *         description: Comments retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Comments retrieved successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Comment'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ */
+router.get("/", authenticate, getComments);
+
+/**
+ * @swagger
+ * /api/comments/task/{taskId}:
+ *   get:
+ *     tags: [Comments]
+ *     summary: Get comments by task
+ *     description: Get all comments for a specific task
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -35,50 +84,38 @@ router.use(authenticateToken);
  *         schema:
  *           type: integer
  *         description: Task ID
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           minimum: 1
- *           default: 1
- *         description: Page number
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 100
- *           default: 10
- *         description: Number of items per page
  *     responses:
  *       200:
  *         description: Task comments retrieved successfully
  *         content:
  *           application/json:
  *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/PaginatedResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       type: array
- *                       items:
- *                         $ref: '#/components/schemas/Comment'
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Task comments retrieved successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Comment'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.get("/task/:taskId", getTaskComments);
+router.get("/task/:taskId", authenticate, getCommentsByTask);
 
 /**
  * @swagger
- * /comments/{id}:
+ * /api/comments/{id}:
  *   get:
- *     summary: Get comment by ID
  *     tags: [Comments]
+ *     summary: Get comment by ID
+ *     description: Retrieve a specific comment by ID
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -106,34 +143,36 @@ router.get("/task/:taskId", getTaskComments);
  *                   $ref: '#/components/schemas/Comment'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.get("/:id", getCommentById);
+router.get("/:id", authenticate, getCommentById);
 
 /**
  * @swagger
- * /comments/task/{taskId}:
+ * /api/comments:
  *   post:
- *     summary: Create a new comment on a task
  *     tags: [Comments]
+ *     summary: Create new comment
+ *     description: Create a new comment on a task
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: taskId
- *         required: true
- *         schema:
- *           type: integer
- *         description: Task ID
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CreateCommentRequest'
+ *             type: object
+ *             required:
+ *               - taskId
+ *               - content
+ *             properties:
+ *               taskId:
+ *                 type: integer
+ *                 example: 1
+ *               content:
+ *                 type: string
+ *                 example: This is a comment on the task
  *     responses:
  *       201:
  *         description: Comment created successfully
@@ -154,19 +193,18 @@ router.get("/:id", getCommentById);
  *         $ref: '#/components/responses/ValidationError'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.post("/task/:taskId", createComment);
+router.post("/", authenticate, createComment);
 
 /**
  * @swagger
- * /comments/{id}:
+ * /api/comments/{id}:
  *   put:
- *     summary: Update comment (only by comment author)
  *     tags: [Comments]
+ *     summary: Update comment
+ *     description: Update an existing comment
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -181,25 +219,14 @@ router.post("/task/:taskId", createComment);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/UpdateCommentRequest'
+ *             type: object
+ *             properties:
+ *               content:
+ *                 type: string
+ *                 example: Updated comment content
  *     responses:
  *       200:
  *         description: Comment updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: Comment updated successfully
- *                 data:
- *                   $ref: '#/components/schemas/Comment'
- *       400:
- *         $ref: '#/components/responses/ValidationError'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
@@ -207,14 +234,15 @@ router.post("/task/:taskId", createComment);
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.put("/:id", updateComment);
+router.put("/:id", authenticate, updateComment);
 
 /**
  * @swagger
- * /comments/{id}:
+ * /api/comments/{id}:
  *   delete:
- *     summary: Delete comment (only by comment author or admin)
  *     tags: [Comments]
+ *     summary: Delete comment
+ *     description: Delete a comment (author or admin only)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -226,7 +254,7 @@ router.put("/:id", updateComment);
  *         description: Comment ID
  *     responses:
  *       200:
- *         $ref: '#/components/responses/SuccessResponse'
+ *         description: Comment deleted successfully
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
@@ -234,6 +262,6 @@ router.put("/:id", updateComment);
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.delete("/:id", deleteComment);
+router.delete("/:id", authenticate, deleteComment);
 
 export default router;

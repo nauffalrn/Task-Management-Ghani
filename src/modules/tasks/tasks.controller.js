@@ -1,5 +1,6 @@
 import { BaseController } from "../../common/controller/base.controller.js";
 import { TasksService } from "./tasks.service.js";
+import { ResponseHelper } from "../../common/utils/response.helper.js";
 
 class TasksController extends BaseController {
   constructor() {
@@ -7,221 +8,131 @@ class TasksController extends BaseController {
     this.tasksService = new TasksService();
   }
 
-  getAllTasks = async (req, res) => {
+  // GET /api/tasks - List all tasks
+  getTasks = async (req, res, next) => {
     try {
       const {
         page = 1,
         limit = 10,
-        workspaceId,
-        assigneeId,
-        status,
-        priority,
         search,
-        overdue,
+        workspaceId,
+        status,
+        assignedTo,
       } = req.query;
 
-      const result = await this.tasksService.getAllTasks({
+      const tasks = await this.tasksService.getAllTasks({
         page: parseInt(page),
         limit: parseInt(limit),
-        workspaceId: workspaceId ? parseInt(workspaceId) : undefined,
-        assigneeId: assigneeId ? parseInt(assigneeId) : undefined,
-        status,
-        priority,
         search,
-        overdue: overdue === "true",
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
+        workspaceId: workspaceId ? parseInt(workspaceId) : undefined,
+        status,
+        assignedTo: assignedTo ? parseInt(assignedTo) : undefined,
       });
 
-      return this.sendSuccessResponse(
-        res,
-        "Tasks retrieved successfully",
-        result.data,
-        result.meta
-      );
+      return ResponseHelper.success(res, tasks, "Tasks retrieved successfully");
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  getTaskById = async (req, res) => {
+  // GET /api/tasks/:id - Get task by ID
+  getTaskById = async (req, res, next) => {
     try {
       const { id } = req.params;
+      const task = await this.tasksService.getTaskById(id);
 
-      const task = await this.tasksService.getTaskById(id, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
-
-      return this.sendSuccessResponse(res, "Task retrieved successfully", task);
+      return ResponseHelper.success(res, task, "Task retrieved successfully");
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  createTask = async (req, res) => {
+  // POST /api/tasks - Create task
+  createTask = async (req, res, next) => {
     try {
       const taskData = req.body;
+      const userId = req.user.userId;
 
-      const task = await this.tasksService.createTask(taskData, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
+      const task = await this.tasksService.createTask(taskData, userId);
 
-      return this.sendSuccessResponse(
-        res,
-        "Task created successfully",
-        task,
-        null,
-        201
-      );
+      return ResponseHelper.created(res, task, "Task created successfully");
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  updateTask = async (req, res) => {
+  // PUT /api/tasks/:id - Update task
+  updateTask = async (req, res, next) => {
     try {
       const { id } = req.params;
       const updateData = req.body;
+      const userId = req.user.userId;
 
-      const task = await this.tasksService.updateTask(id, updateData, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
+      const task = await this.tasksService.updateTask(id, updateData, userId);
 
-      return this.sendSuccessResponse(res, "Task updated successfully", task);
+      return ResponseHelper.success(res, task, "Task updated successfully");
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  updateTaskStatus = async (req, res) => {
+  // DELETE /api/tasks/:id - Delete task
+  deleteTask = async (req, res, next) => {
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      const userId = req.user.userId;
 
-      const task = await this.tasksService.updateTaskStatus(id, status, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
+      await this.tasksService.deleteTask(id, userId);
 
-      return this.sendSuccessResponse(
-        res,
-        "Task status updated successfully",
-        task
-      );
+      return ResponseHelper.success(res, null, "Task deleted successfully");
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  deleteTask = async (req, res) => {
-    try {
-      const { id } = req.params;
-
-      await this.tasksService.deleteTask(id, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
-
-      return this.sendSuccessResponse(res, "Task deleted successfully");
-    } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
-    }
-  };
-
-  getTasksByWorkspace = async (req, res) => {
+  // GET /api/tasks/workspace/:workspaceId - Get tasks by workspace
+  getTasksByWorkspace = async (req, res, next) => {
     try {
       const { workspaceId } = req.params;
-      const { page = 1, limit = 10, status, priority } = req.query;
 
-      const result = await this.tasksService.getTasksByWorkspace(workspaceId, {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        status,
-        priority,
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
+      const tasks = await this.tasksService.getTasksByWorkspace(workspaceId);
 
-      return this.sendSuccessResponse(
+      return ResponseHelper.success(
         res,
-        "Workspace tasks retrieved successfully",
-        result.data,
-        result.meta
+        tasks,
+        "Workspace tasks retrieved successfully"
       );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  getTasksByAssignee = async (req, res) => {
+  // GET /api/tasks/my - Get current user's assigned tasks
+  getMyTasks = async (req, res, next) => {
     try {
-      const { assigneeId } = req.params;
-      const { page = 1, limit = 10, status } = req.query;
+      const userId = req.user.userId;
 
-      const result = await this.tasksService.getTasksByAssignee(assigneeId, {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        status,
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
+      const tasks = await this.tasksService.getUserTasks(userId);
 
-      return this.sendSuccessResponse(
+      return ResponseHelper.success(
         res,
-        "User tasks retrieved successfully",
-        result.data,
-        result.meta
+        tasks,
+        "User tasks retrieved successfully"
       );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 }
 
-const tasksController = new TasksController();
+export const tasksController = new TasksController();
+export { TasksController };
 
-export const {
-  getAllTasks,
-  getTaskById,
-  createTask,
-  updateTask,
-  updateTaskStatus,
-  deleteTask,
-  getTasksByWorkspace,
-  getTasksByAssignee,
-} = tasksController;
+// Export individual methods untuk routes
+export const getTasks = tasksController.getTasks;
+export const getTaskById = tasksController.getTaskById;
+export const createTask = tasksController.createTask;
+export const updateTask = tasksController.updateTask;
+export const deleteTask = tasksController.deleteTask;
+export const getTasksByWorkspace = tasksController.getTasksByWorkspace;
+export const getMyTasks = tasksController.getMyTasks;

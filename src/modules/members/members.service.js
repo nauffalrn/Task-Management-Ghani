@@ -2,231 +2,185 @@ import { BaseService } from "../../common/service/base.service.js";
 import { MembersRepository } from "./members.repo.js";
 import { WorkspacesRepository } from "../workspaces/workspaces.repo.js";
 import { UsersRepository } from "../users/users.repo.js";
-import {
-  WORKSPACE_ROLES,
-  canManageWorkspaceMembers,
-  ROLES,
-  GLOBAL_ACCESS_ROLES,
-  isDepartmentHead,
-  getDepartmentFromRole,
-} from "../../common/constants/roles.js";
-import { HTTP_STATUS } from "../../common/constants/app.js";
+import { AppError } from "../../common/utils/appError.js";
 
 export class MembersService extends BaseService {
   constructor() {
-    const membersRepo = new MembersRepository();
-    super(membersRepo, "Member");
-    this.workspacesRepo = new WorkspacesRepository();
-    this.usersRepo = new UsersRepository();
+    super();
+    this.membersRepository = new MembersRepository();
+    this.workspacesRepository = new WorkspacesRepository();
+    this.usersRepository = new UsersRepository();
   }
 
-  async getWorkspaceMembers(workspaceId, user) {
+  // Get all members
+  async getAllMembers(options = {}) {
     try {
-      // Check if workspace exists and user has access
-      const workspace = await this.workspacesRepo.findById(workspaceId);
-      if (!workspace) {
-        const error = new Error("Workspace not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
-      }
+      const { page = 1, limit = 10, search, workspaceId, role } = options;
 
-      // Check access
-      if (!GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
-        const hasAccess = userWorkspaces.some((ws) => ws.id === workspaceId);
+      console.log("🔍 MembersService getAllMembers - Options:", options);
 
-        if (!hasAccess) {
-          const error = new Error("Access denied to this workspace");
-          error.statusCode = HTTP_STATUS.FORBIDDEN;
-          throw error;
-        }
-      }
+      const members = await this.membersRepository.findMany({
+        page,
+        limit,
+        search,
+        workspaceId,
+        role,
+      });
 
-      const members = await this.repository.findByWorkspaceId(workspaceId);
+      console.log("✅ MembersService getAllMembers - Found:", members.length);
       return members;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to get workspace members: ${error.message}`);
+      console.error("❌ MembersService getAllMembers error:", error);
+      throw error;
     }
   }
 
-  async addMember(workspaceId, memberData, requestingUser) {
+  // Get member by ID
+  async getMemberById(id) {
     try {
-      // Get workspace info
-      const workspace = await this.workspacesRepo.findById(workspaceId);
+      console.log("🔍 MembersService getMemberById - ID:", id);
+
+      const member = await this.membersRepository.findById(id);
+      if (!member) {
+        throw AppError.notFound("Member not found");
+      }
+
+      console.log("✅ MembersService getMemberById - Found:", member.user_name);
+      return member;
+    } catch (error) {
+      console.error("❌ MembersService getMemberById error:", error);
+      throw error;
+    }
+  }
+
+  // Add member to workspace
+  async addMember(memberData, currentUserId) {
+    try {
+      const { workspaceId, userId, role = "member" } = memberData;
+
+      console.log("📝 MembersService addMember - Data:", {
+        workspaceId,
+        userId,
+        role,
+        currentUserId,
+      });
+
+      // Validate workspace exists
+      const workspace = await this.workspacesRepository.findById(workspaceId);
       if (!workspace) {
-        const error = new Error("Workspace not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
+        throw AppError.notFound("Workspace not found");
       }
 
-      // Check permissions
-      if (!canManageWorkspaceMembers(requestingUser.role, workspace.name)) {
-        const error = new Error(
-          "Access denied. Only Manager and relevant Department Heads can manage members"
-        );
-        error.statusCode = HTTP_STATUS.FORBIDDEN;
-        throw error;
-      }
-
-      const { userId, role } = memberData;
-
-      // Validate required fields
-      if (!userId || !role) {
-        const error = new Error("User ID and role are required");
-        error.statusCode = HTTP_STATUS.BAD_REQUEST;
-        throw error;
-      }
-
-      // Validate workspace role
-      if (!Object.values(WORKSPACE_ROLES).includes(role)) {
-        const error = new Error(
-          `Invalid workspace role. Valid roles are: ${Object.values(
-            WORKSPACE_ROLES
-          ).join(", ")}`
-        );
-        error.statusCode = HTTP_STATUS.BAD_REQUEST;
-        throw error;
-      }
-
-      // Check if user exists
-      const targetUser = await this.usersRepo.findById(userId);
-      if (!targetUser) {
-        const error = new Error("Target user not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
-      }
-
-      // Department heads can only add users from their department
-      if (isDepartmentHead(requestingUser.role)) {
-        const requestingUserDepartment = getDepartmentFromRole(
-          requestingUser.role
-        );
-        const targetUserDepartment = getDepartmentFromRole(targetUser.role);
-
-        if (
-          targetUserDepartment !== requestingUserDepartment &&
-          workspace.name !== "Independence Day"
-        ) {
-          const error = new Error(
-            `Access denied. You can only add users from ${requestingUserDepartment} department to this workspace`
-          );
-          error.statusCode = HTTP_STATUS.FORBIDDEN;
-          throw error;
-        }
+      // Validate user exists
+      const user = await this.usersRepository.findById(userId);
+      if (!user) {
+        throw AppError.notFound("User not found");
       }
 
       // Check if user is already a member
-      const existingMember = await this.repository.findMember(
-        workspaceId,
-        userId
-      );
+      const existingMember =
+        await this.membersRepository.findByUserAndWorkspace(
+          userId,
+          workspaceId
+        );
       if (existingMember) {
-        const error = new Error("User is already a member of this workspace");
-        error.statusCode = HTTP_STATUS.CONFLICT;
-        throw error;
+        throw AppError.conflict("User is already a member of this workspace");
       }
 
-      const newMember = await this.repository.addMember({
+      // Add member
+      const newMember = await this.membersRepository.create({
         workspaceId,
         userId,
         role,
       });
 
+      console.log("✅ MembersService addMember - Added:", newMember.id);
       return newMember;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to add member: ${error.message}`);
+      console.error("❌ MembersService addMember error:", error);
+      throw error;
     }
   }
 
-  async updateMember(workspaceId, userId, memberData, user) {
+  // Update member role
+  async updateMember(id, updateData, currentUserId) {
     try {
-      // Check if workspace exists
-      const workspace = await this.workspacesRepo.findById(workspaceId);
-      if (!workspace) {
-        const error = new Error("Workspace not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
-      }
-
-      // Check permissions
-      if (!canManageWorkspaceMembers(user.role, workspace.name)) {
-        const error = new Error(
-          "Access denied. Only Manager and relevant Department Heads can manage members"
-        );
-        error.statusCode = HTTP_STATUS.FORBIDDEN;
-        throw error;
-      }
-
-      // Find existing member
-      const existingMember = await this.repository.findMember(
-        workspaceId,
-        userId
+      console.log(
+        "🔄 MembersService updateMember - ID:",
+        id,
+        "Data:",
+        updateData
       );
+
+      // Check if member exists
+      const existingMember = await this.membersRepository.findById(id);
       if (!existingMember) {
-        const error = new Error("Member not found in this workspace");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
+        throw AppError.notFound("Member not found");
       }
 
-      // Validate workspace role if provided
-      if (
-        memberData.role &&
-        !Object.values(WORKSPACE_ROLES).includes(memberData.role)
-      ) {
-        const error = new Error("Invalid workspace role");
-        error.statusCode = HTTP_STATUS.BAD_REQUEST;
-        throw error;
-      }
+      const updatedMember = await this.membersRepository.update(id, updateData);
 
-      const updatedMember = await this.repository.updateMember(
-        existingMember.id,
-        memberData
+      console.log(
+        "✅ MembersService updateMember - Updated:",
+        updatedMember.id
       );
-
       return updatedMember;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to update member: ${error.message}`);
+      console.error("❌ MembersService updateMember error:", error);
+      throw error;
     }
   }
 
-  async removeMember(workspaceId, userId, user) {
+  // Remove member from workspace
+  async removeMember(id, currentUserId) {
     try {
-      // Check if workspace exists
-      const workspace = await this.workspacesRepo.findById(workspaceId);
-      if (!workspace) {
-        const error = new Error("Workspace not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
-      }
+      console.log("🗑️ MembersService removeMember - ID:", id);
 
-      // Check permissions
-      if (!canManageWorkspaceMembers(user.role, workspace.name)) {
-        const error = new Error(
-          "Access denied. Only Manager and relevant Department Heads can manage members"
-        );
-        error.statusCode = HTTP_STATUS.FORBIDDEN;
-        throw error;
-      }
-
-      // Find existing member
-      const existingMember = await this.repository.findMember(
-        workspaceId,
-        userId
-      );
+      // Check if member exists
+      const existingMember = await this.membersRepository.findById(id);
       if (!existingMember) {
-        const error = new Error("Member not found in this workspace");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
+        throw AppError.notFound("Member not found");
       }
 
-      await this.repository.removeMemberByIds(workspaceId, userId);
-      return existingMember;
+      await this.membersRepository.delete(id);
+
+      console.log(
+        "✅ MembersService removeMember - Removed member:",
+        existingMember.user_name
+      );
+      return true;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to remove member: ${error.message}`);
+      console.error("❌ MembersService removeMember error:", error);
+      throw error;
+    }
+  }
+
+  // Get members by workspace
+  async getMembersByWorkspace(workspaceId) {
+    try {
+      console.log(
+        "🔍 MembersService getMembersByWorkspace - WorkspaceId:",
+        workspaceId
+      );
+
+      // Validate workspace exists
+      const workspace = await this.workspacesRepository.findById(workspaceId);
+      if (!workspace) {
+        throw AppError.notFound("Workspace not found");
+      }
+
+      const members = await this.membersRepository.findByWorkspaceId(
+        workspaceId
+      );
+
+      console.log(
+        "✅ MembersService getMembersByWorkspace - Found:",
+        members.length
+      );
+      return members;
+    } catch (error) {
+      console.error("❌ MembersService getMembersByWorkspace error:", error);
+      throw error;
     }
   }
 }

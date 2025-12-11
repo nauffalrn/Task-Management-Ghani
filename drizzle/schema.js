@@ -2,145 +2,88 @@ import {
   pgTable,
   serial,
   varchar,
-  integer,
-  timestamp,
   text,
-  pgEnum,
-  index,
-  uniqueIndex,
+  timestamp,
+  integer,
+  boolean,
+  json,
 } from "drizzle-orm/pg-core";
 
-// Enum untuk status task
-export const taskStatusEnum = pgEnum("task_status", [
-  "todo",
-  "in_progress",
-  "done",
-]);
-
-// Users Table
+// Users table
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
+  email: varchar("email", { length: 255 }).unique().notNull(),
   password: varchar("password", { length: 255 }).notNull(),
-  role: varchar("role", { length: 50 }).notNull(),
+  role: varchar("role", { length: 50 }).notNull().default("staff_it"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Workspaces Table
+// Workspaces table
 export const workspaces = pgTable("workspaces", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
-  createdBy: integer("created_by")
-    .references(() => users.id)
-    .notNull(),
+  createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Workspaces Members Table
-export const workspacesMembers = pgTable(
-  "workspaces_members",
-  {
-    id: serial("id").primaryKey(),
-    workspaceId: integer("workspace_id")
-      .references(() => workspaces.id)
-      .notNull(),
-    userId: integer("user_id")
-      .references(() => users.id)
-      .notNull(),
-    role: varchar("role", { length: 50 }).notNull(),
-    createdAt: timestamp("created_at").defaultNow(),
-    updatedAt: timestamp("updated_at").defaultNow(),
-  },
-  (t) => ({
-    uq: uniqueIndex("ws_members_uq").on(t.workspaceId, t.userId),
-  })
-);
+// Tasks table
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").references(() => workspaces.id),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  status: varchar("status", { length: 50 }).notNull().default("todo"),
+  assignedTo: integer("assigned_to").references(() => users.id),
+  createdBy: integer("created_by").references(() => users.id),
+  dueDate: timestamp("due_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
-// Tasks Table
-export const tasks = pgTable(
-  "tasks",
-  {
-    id: serial("id").primaryKey(),
-    workspaceId: integer("workspace_id")
-      .references(() => workspaces.id)
-      .notNull(),
-    title: varchar("title", { length: 255 }).notNull(),
-    description: text("description"),
-    status: taskStatusEnum("status").default("todo"),
-    assignedTo: integer("assigned_to").references(() => users.id),
-    dueDate: timestamp("due_date"),
-    createdBy: integer("created_by")
-      .references(() => users.id)
-      .notNull(),
-    createdAt: timestamp("created_at").defaultNow(),
-    updatedAt: timestamp("updated_at").defaultNow(),
-  },
-  (t) => ({
-    workspaceIdx: index("tasks_workspace_idx").on(t.workspaceId),
-    assignedToIdx: index("tasks_assigned_to_idx").on(t.assignedTo),
-    statusIdx: index("tasks_status_idx").on(t.status),
-    dueDateIdx: index("tasks_due_date_idx").on(t.dueDate),
-  })
-);
+// Comments table
+export const comments = pgTable("comments", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id),
+  userId: integer("user_id").references(() => users.id),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
-// Comments Table
-export const comments = pgTable(
-  "comments",
-  {
-    id: serial("id").primaryKey(),
-    taskId: integer("task_id")
-      .references(() => tasks.id)
-      .notNull(),
-    userId: integer("user_id")
-      .references(() => users.id)
-      .notNull(),
-    content: text("content").notNull(),
-    createdAt: timestamp("created_at").defaultNow(),
-    updatedAt: timestamp("updated_at").defaultNow(),
-  },
-  (t) => ({
-    taskIdx: index("comments_task_idx").on(t.taskId),
-  })
-);
+// Attachments table - PASTIKAN INI ADA
+export const attachments = pgTable("attachments", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id),
+  userId: integer("user_id").references(() => users.id), 
+  filename: varchar("filename", { length: 255 }).notNull(),
+  originalName: varchar("original_name", { length: 255 }).notNull(),
+  filetype: varchar("filetype", { length: 100 }), 
+  fileSize: integer("file_size"),
+  filePath: varchar("file_path", { length: 500 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(), 
+});
 
-// Attachments Table
-export const attachments = pgTable(
-  "attachments",
-  {
-    id: serial("id").primaryKey(),
-    taskId: integer("task_id")
-      .references(() => tasks.id)
-      .notNull(),
-    userId: integer("user_id")
-      .references(() => users.id)
-      .notNull(),
-    fileName: varchar("filename", { length: 255 }).notNull(),
-    originalName: varchar("original_name", { length: 255 }).notNull(),
-    fileType: varchar("filetype", { length: 100 }).notNull(),
-    fileSize: integer("file_size").notNull(),
-    filePath: varchar("file_path", { length: 500 }).notNull(),
-    createdAt: timestamp("created_at").defaultNow(),
-    updatedAt: timestamp("updated_at").defaultNow(),
-  },
-  (t) => ({
-    taskIdx: index("attachments_task_idx").on(t.taskId),
-  })
-);
-
-// Logs Table
+// Logs table - PASTIKAN INI ADA
 export const logs = pgTable("logs", {
   id: serial("id").primaryKey(),
-  workspaceId: integer("workspace_id")
-    .references(() => workspaces.id)
-    .notNull(),
-  taskId: integer("task_id").references(() => tasks.id),
-  userId: integer("user_id")
-    .references(() => users.id)
-    .notNull(),
+  workspaceId: integer("workspace_id").references(() => workspaces.id),
+  taskId: integer("task_id").references(() => tasks.id), // TAMBAH: sesuai database
+  userId: integer("user_id").references(() => users.id),
   action: varchar("action", { length: 100 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Workspace Members table
+export const workspacesMembers = pgTable("workspaces_members", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").references(() => workspaces.id),
+  userId: integer("user_id").references(() => users.id),
+  role: varchar("role", { length: 50 }).notNull().default("member"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });

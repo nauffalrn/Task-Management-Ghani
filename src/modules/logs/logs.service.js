@@ -1,109 +1,115 @@
 import { BaseService } from "../../common/service/base.service.js";
 import { LogsRepository } from "./logs.repo.js";
 import { WorkspacesRepository } from "../workspaces/workspaces.repo.js";
-import { GLOBAL_ACCESS_ROLES } from "../../common/constants/roles.js";
-import { HTTP_STATUS } from "../../common/constants/app.js";
+import { AppError } from "../../common/utils/appError.js";
 
 export class LogsService extends BaseService {
   constructor() {
-    const logsRepo = new LogsRepository();
-    super(logsRepo, "Log");
-    this.workspacesRepo = new WorkspacesRepository();
+    super();
+    this.logsRepository = new LogsRepository();
+    this.workspacesRepository = new WorkspacesRepository();
   }
 
-  async getAllLogs(user, filters = {}) {
+  // Get all logs
+  async getAllLogs(options = {}) {
     try {
-      let logsList;
+      const { page = 1, limit = 10, workspaceId, action } = options;
 
-      // If user has global access, get all logs or filter by workspace
-      if (GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        logsList = await this.repository.findAll(filters);
-      } else {
-        // Get logs from user's workspaces only
-        const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
-        const workspaceIds = userWorkspaces.map((ws) => ws.id);
+      console.log("🔍 LogsService getAllLogs - Options:", options);
 
-        if (workspaceIds.length === 0) {
-          logsList = [];
-        } else {
-          // If workspace filter is provided, check if user has access
-          if (
-            filters.workspaceId &&
-            !workspaceIds.includes(filters.workspaceId)
-          ) {
-            const error = new Error("Access denied to this workspace");
-            error.statusCode = HTTP_STATUS.FORBIDDEN;
-            throw error;
-          }
+      const logs = await this.logsRepository.findMany({
+        page,
+        limit,
+        workspaceId,
+        action,
+      });
 
-          logsList = await this.repository.findAll(filters);
-          // Filter logs by user's accessible workspaces
-          logsList = logsList.filter((log) =>
-            workspaceIds.includes(log.workspaceId)
-          );
-        }
-      }
-
-      return logsList;
+      console.log("✅ LogsService getAllLogs - Found:", logs.length);
+      return logs;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to get logs: ${error.message}`);
+      console.error("❌ LogsService getAllLogs error:", error);
+      throw error;
     }
   }
 
-  async getWorkspaceLogs(workspaceId, user) {
+  // Create log entry (PERBAIKAN: sesuai field database)
+  async createLog(logData) {
     try {
-      // Check if workspace exists
-      const workspace = await this.workspacesRepo.findById(workspaceId);
-      if (!workspace) {
-        const error = new Error("Workspace not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
-      }
+      console.log("📝 LogsService createLog - Data:", logData);
 
-      // Check if user has access to this workspace
-      if (!GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        const userWorkspaces = await this.workspacesRepo.findByUserId(user.id);
-        const hasAccess = userWorkspaces.some((ws) => ws.id === workspaceId);
-
-        if (!hasAccess) {
-          const error = new Error("Access denied to this workspace");
-          error.statusCode = HTTP_STATUS.FORBIDDEN;
-          throw error;
-        }
-      }
-
-      const logsList = await this.repository.findByWorkspaceId(workspaceId);
-      return logsList;
-    } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to get workspace logs: ${error.message}`);
-    }
-  }
-
-  // Override create to add validation
-  async create(logData) {
-    try {
+      // PERBAIKAN: Hanya gunakan field yang ada di database
       const { workspaceId, taskId, userId, action } = logData;
 
-      // Validate required fields
-      if (!workspaceId || !userId || !action) {
-        const error = new Error(
-          "Workspace ID, user ID, and action are required"
-        );
-        error.statusCode = HTTP_STATUS.BAD_REQUEST;
-        throw error;
-      }
-
-      return await this.repository.create({
+      const newLog = await this.logsRepository.create({
         workspaceId,
-        taskId: taskId || null,
+        taskId, // BARU: field yang ada di database
         userId,
         action,
       });
+
+      console.log("✅ LogsService createLog - Created:", newLog.id);
+      return newLog;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to create log: ${error.message}`);
+      console.error("❌ LogsService createLog error:", error);
+      throw error;
+    }
+  }
+
+  // Method lain tetap sama tapi hapus reference ke field yang tidak ada
+  async getLogById(id) {
+    try {
+      console.log("🔍 LogsService getLogById - ID:", id);
+
+      const log = await this.logsRepository.findById(id);
+      if (!log) {
+        throw AppError.notFound("Log not found");
+      }
+
+      console.log("✅ LogsService getLogById - Found:", log.action);
+      return log;
+    } catch (error) {
+      console.error("❌ LogsService getLogById error:", error);
+      throw error;
+    }
+  }
+
+  async getLogsByWorkspace(workspaceId, options = {}) {
+    try {
+      console.log(
+        "🔍 LogsService getLogsByWorkspace - WorkspaceId:",
+        workspaceId
+      );
+
+      // Validate workspace exists
+      const workspace = await this.workspacesRepository.findById(workspaceId);
+      if (!workspace) {
+        throw AppError.notFound("Workspace not found");
+      }
+
+      const logs = await this.logsRepository.findByWorkspaceId(
+        workspaceId,
+        options
+      );
+
+      console.log("✅ LogsService getLogsByWorkspace - Found:", logs.length);
+      return logs;
+    } catch (error) {
+      console.error("❌ LogsService getLogsByWorkspace error:", error);
+      throw error;
+    }
+  }
+
+  async getLogsByUser(userId, options = {}) {
+    try {
+      console.log("🔍 LogsService getLogsByUser - UserId:", userId);
+
+      const logs = await this.logsRepository.findByUserId(userId, options);
+
+      console.log("✅ LogsService getLogsByUser - Found:", logs.length);
+      return logs;
+    } catch (error) {
+      console.error("❌ LogsService getLogsByUser error:", error);
+      throw error;
     }
   }
 }

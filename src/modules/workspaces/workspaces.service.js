@@ -1,216 +1,173 @@
 import { BaseService } from "../../common/service/base.service.js";
 import { WorkspacesRepository } from "./workspaces.repo.js";
-import {
-  ROLES,
-  GLOBAL_ACCESS_ROLES,
-  canCreateWorkspace,
-  WORKSPACE_CREATOR_ROLES,
-  GENERAL_WORKSPACE_CREATOR_ROLES,
-  GENERAL_WORKSPACE_NAME,
-  isDepartmentHead,
-  getDepartmentFromRole,
-} from "../../common/constants/roles.js";
-import { HTTP_STATUS } from "../../common/constants/app.js";
+import { AppError } from "../../common/utils/appError.js";
 
 export class WorkspacesService extends BaseService {
   constructor() {
-    const workspacesRepo = new WorkspacesRepository();
-    super(workspacesRepo, "Workspace");
+    super();
+    this.workspacesRepository = new WorkspacesRepository();
   }
 
-  // Override create to add validation
-  async create(workspaceData, user) {
+  // Get all workspaces
+  async getAllWorkspaces(options = {}) {
     try {
-      // Validate required fields
-      if (!workspaceData.name) {
-        const error = new Error("Workspace name is required");
-        error.statusCode = HTTP_STATUS.BAD_REQUEST;
-        throw error;
-      }
+      const { page = 1, limit = 10, search, userId } = options;
 
-      // Check if user can create workspace
-      if (!canCreateWorkspace(user.role)) {
-        const error = new Error("Access denied. You cannot create workspaces");
-        error.statusCode = HTTP_STATUS.FORBIDDEN;
-        throw error;
-      }
+      console.log("🔍 WorkspacesService getAllWorkspaces - Options:", options);
 
-      // Check if it's a general workspace
-      if (workspaceData.name === GENERAL_WORKSPACE_NAME) {
-        if (!GENERAL_WORKSPACE_CREATOR_ROLES.includes(user.role)) {
-          const error = new Error(
-            "Access denied. Only Manager can create general workspace"
-          );
-          error.statusCode = HTTP_STATUS.FORBIDDEN;
-          throw error;
-        }
-      }
-
-      // Department heads can only create their department workspace
-      if (isDepartmentHead(user.role)) {
-        const userDepartment = getDepartmentFromRole(user.role);
-        const expectedWorkspaceName = userDepartment;
-
-        if (
-          !workspaceData.name
-            .toLowerCase()
-            .includes(expectedWorkspaceName.toLowerCase()) &&
-          workspaceData.name !== GENERAL_WORKSPACE_NAME
-        ) {
-          const error = new Error(
-            `Access denied. You can only create ${userDepartment} department workspace`
-          );
-          error.statusCode = HTTP_STATUS.FORBIDDEN;
-          throw error;
-        }
-      }
-
-      const workspace = await this.repository.create({
-        ...workspaceData,
-        createdBy: user.id,
+      const workspaces = await this.workspacesRepository.findMany({
+        page,
+        limit,
+        search,
+        userId,
       });
 
+      console.log(
+        "✅ WorkspacesService getAllWorkspaces - Found:",
+        workspaces.length
+      );
+      return workspaces;
+    } catch (error) {
+      console.error("❌ WorkspacesService getAllWorkspaces error:", error);
+      throw error;
+    }
+  }
+
+  // Get workspace by ID
+  async getWorkspaceById(id) {
+    try {
+      console.log("🔍 WorkspacesService getWorkspaceById - ID:", id);
+
+      const workspace = await this.workspacesRepository.findById(id);
+      if (!workspace) {
+        throw AppError.notFound("Workspace not found");
+      }
+
+      console.log(
+        "✅ WorkspacesService getWorkspaceById - Found:",
+        workspace.name
+      );
       return workspace;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to create workspace: ${error.message}`);
+      console.error("❌ WorkspacesService getWorkspaceById error:", error);
+      throw error;
     }
   }
 
-  async getAllWorkspaces(user, search = "") {
+  // Create workspace
+  async createWorkspace(workspaceData, userId) {
     try {
-      let workspacesList;
+      const { name, description } = workspaceData;
 
-      // If user has global access, get all workspaces
-      if (GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        workspacesList = await this.repository.findAll(search);
-      } else {
-        // Get only workspaces where user is explicitly a member
-        const userWorkspaces = await this.repository.findByUserId(user.id);
+      console.log("📝 WorkspacesService createWorkspace - Data:", {
+        name,
+        description,
+        userId,
+      });
 
-        // If search is provided, filter by search term
-        if (search) {
-          workspacesList = userWorkspaces.filter(
-            (ws) =>
-              ws.name.toLowerCase().includes(search.toLowerCase()) ||
-              (ws.description &&
-                ws.description.toLowerCase().includes(search.toLowerCase()))
-          );
-        } else {
-          workspacesList = userWorkspaces;
-        }
-      }
+      // Create workspace
+      const newWorkspace = await this.workspacesRepository.create({
+        name,
+        description,
+        createdBy: userId,
+      });
 
-      return workspacesList;
+      console.log(
+        "✅ WorkspacesService createWorkspace - Created:",
+        newWorkspace.id
+      );
+      return newWorkspace;
     } catch (error) {
-      throw new Error(`Failed to get workspaces: ${error.message}`);
+      console.error("❌ WorkspacesService createWorkspace error:", error);
+      throw error;
     }
   }
 
-  // Override getById to add access control
-  async getById(id, user) {
+  // Update workspace
+  async updateWorkspace(id, updateData, userId) {
     try {
-      const workspace = await this.repository.findById(id);
+      console.log(
+        "🔄 WorkspacesService updateWorkspace - ID:",
+        id,
+        "Data:",
+        updateData
+      );
 
-      if (!workspace) {
-        const error = new Error("Workspace not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
+      // Check if workspace exists
+      const existingWorkspace = await this.workspacesRepository.findById(id);
+      if (!existingWorkspace) {
+        throw AppError.notFound("Workspace not found");
       }
 
-      // Strict access control - must be member or have global access
-      if (!GLOBAL_ACCESS_ROLES.includes(user.role)) {
-        const userWorkspaces = await this.repository.findByUserId(user.id);
-        const hasAccess = userWorkspaces.some((ws) => ws.id === id);
-
-        if (!hasAccess) {
-          const error = new Error(
-            "Access denied to this workspace. You must be added as a member by workspace admin."
-          );
-          error.statusCode = HTTP_STATUS.FORBIDDEN;
-          throw error;
-        }
+      // Check if user is owner (for authorization)
+      if (existingWorkspace.createdBy !== userId) {
+        throw AppError.forbidden(
+          "Only workspace owner can update this workspace"
+        );
       }
 
-      // Get workspace members
-      const members = await this.repository.getWorkspaceMembers(id);
+      const updatedWorkspace = await this.workspacesRepository.update(
+        id,
+        updateData
+      );
 
-      return {
-        ...workspace,
-        members,
-      };
-    } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to get workspace: ${error.message}`);
-    }
-  }
-
-  // Override update to add validation
-  async update(id, workspaceData, user) {
-    try {
-      const workspace = await this.repository.findById(id);
-      if (!workspace) {
-        const error = new Error("Workspace not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
-      }
-
-      // Check permissions
-      if (
-        !GLOBAL_ACCESS_ROLES.includes(user.role) &&
-        !WORKSPACE_CREATOR_ROLES.includes(user.role)
-      ) {
-        const error = new Error("Access denied. You cannot update workspaces");
-        error.statusCode = HTTP_STATUS.FORBIDDEN;
-        throw error;
-      }
-
-      const updatedWorkspace = await this.repository.update(id, workspaceData);
+      console.log(
+        "✅ WorkspacesService updateWorkspace - Updated:",
+        updatedWorkspace.name
+      );
       return updatedWorkspace;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to update workspace: ${error.message}`);
+      console.error("❌ WorkspacesService updateWorkspace error:", error);
+      throw error;
     }
   }
 
-  // Override delete to add validation
-  async delete(id, user) {
+  // Delete workspace
+  async deleteWorkspace(id, userId) {
     try {
-      const workspace = await this.repository.findById(id);
-      if (!workspace) {
-        const error = new Error("Workspace not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
+      console.log("🗑️ WorkspacesService deleteWorkspace - ID:", id);
+
+      // Check if workspace exists
+      const existingWorkspace = await this.workspacesRepository.findById(id);
+      if (!existingWorkspace) {
+        throw AppError.notFound("Workspace not found");
       }
 
-      // Check permissions
-      if (
-        !GLOBAL_ACCESS_ROLES.includes(user.role) &&
-        !WORKSPACE_CREATOR_ROLES.includes(user.role)
-      ) {
-        const error = new Error("Access denied. You cannot delete workspaces");
-        error.statusCode = HTTP_STATUS.FORBIDDEN;
-        throw error;
+      // Check if user is owner (for authorization)
+      if (existingWorkspace.createdBy !== userId) {
+        throw AppError.forbidden(
+          "Only workspace owner can delete this workspace"
+        );
       }
 
-      const deletedWorkspace = await this.repository.delete(id);
-      return deletedWorkspace;
+      await this.workspacesRepository.delete(id);
+
+      console.log(
+        "✅ WorkspacesService deleteWorkspace - Deleted workspace:",
+        existingWorkspace.name
+      );
+      return true;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to delete workspace: ${error.message}`);
+      console.error("❌ WorkspacesService deleteWorkspace error:", error);
+      throw error;
     }
   }
 
-  async getWorkspaceStats(workspaceId, user) {
+  // Get user's workspaces
+  async getUserWorkspaces(userId) {
     try {
-      // Check access first
-      await this.getById(workspaceId, user);
+      console.log("🔍 WorkspacesService getUserWorkspaces - UserId:", userId);
 
-      const stats = await this.repository.getWorkspaceStats(workspaceId);
-      return stats;
+      const workspaces = await this.workspacesRepository.findByUserId(userId);
+
+      console.log(
+        "✅ WorkspacesService getUserWorkspaces - Found:",
+        workspaces.length
+      );
+      return workspaces;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to get workspace stats: ${error.message}`);
+      console.error("❌ WorkspacesService getUserWorkspaces error:", error);
+      throw error;
     }
   }
 }

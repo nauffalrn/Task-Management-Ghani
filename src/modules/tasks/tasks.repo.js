@@ -1,113 +1,197 @@
 import { BaseRepository } from "../../common/repository/base.repository.js";
-import { db } from "../../config/db.js";
 import { tasks, users, workspaces } from "../../../drizzle/schema.js";
-import { eq, and, ilike, count } from "drizzle-orm";
+import { eq, like, or, and, desc } from "drizzle-orm";
 
 export class TasksRepository extends BaseRepository {
   constructor() {
-    super(tasks, "task");
+    super(tasks);
   }
 
-  async findAll(options = {}) {
-    return super.findAll({
-      ...options,
-      searchField: "title",
-      additionalConditions: this.buildAdditionalConditions(options),
-    });
-  }
-
-  buildAdditionalConditions(options) {
-    const conditions = [];
-
-    if (options.workspaceId) {
-      conditions.push(eq(tasks.workspaceId, options.workspaceId));
-    }
-
-    if (options.status) {
-      conditions.push(eq(tasks.status, options.status));
-    }
-
-    if (options.priority) {
-      conditions.push(eq(tasks.priority, options.priority));
-    }
-
-    if (options.assignedTo) {
-      conditions.push(eq(tasks.assignedTo, options.assignedTo));
-    }
-
-    return conditions.length > 0 ? and(...conditions) : null;
-  }
-
-  async findByWorkspaceId(workspaceId, options = {}) {
-    return this.findAll({
-      ...options,
-      workspaceId,
-    });
-  }
-
-  async findByAssignedUser(userId, options = {}) {
-    return this.findAll({
-      ...options,
-      assignedTo: userId,
-    });
-  }
-
-  async findWithDetails(taskId) {
+  // Get all tasks with pagination and search
+  async findMany(options = {}) {
     try {
-      const result = await db
+      const {
+        page = 1,
+        limit = 10,
+        search,
+        workspaceId,
+        status,
+        assignedTo,
+      } = options;
+
+      console.log("🔍 TasksRepo findMany - Options:", options);
+
+      const offset = (page - 1) * limit;
+
+      // Build where conditions
+      let whereConditions = [];
+
+      if (search) {
+        whereConditions.push(
+          or(
+            like(tasks.title, `%${search}%`),
+            like(tasks.description, `%${search}%`)
+          )
+        );
+      }
+
+      if (workspaceId) {
+        whereConditions.push(eq(tasks.workspaceId, workspaceId));
+      }
+
+      if (status) {
+        whereConditions.push(eq(tasks.status, status));
+      }
+
+      if (assignedTo) {
+        whereConditions.push(eq(tasks.assignedTo, assignedTo));
+      }
+
+      const whereClause =
+        whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+      let query = this.db
         .select({
           id: tasks.id,
+          workspace_id: tasks.workspaceId,
           title: tasks.title,
           description: tasks.description,
           status: tasks.status,
-          priority: tasks.priority,
-          dueDate: tasks.dueDate,
-          createdAt: tasks.createdAt,
-          updatedAt: tasks.updatedAt,
-          workspace: {
-            id: workspaces.id,
-            name: workspaces.name,
-          },
-          creator: {
-            id: users.id,
-            name: users.name,
-            email: users.email,
-          },
-          assignee: {
-            id: users.id,
-            name: users.name,
-            email: users.email,
-          },
+          assigned_to: tasks.assignedTo,
+          created_by: tasks.createdBy,
+          due_date: tasks.dueDate,
+          created_at: tasks.createdAt,
+          updated_at: tasks.updatedAt,
         })
         .from(tasks)
-        .leftJoin(workspaces, eq(tasks.workspaceId, workspaces.id))
-        .leftJoin(users, eq(tasks.createdBy, users.id))
-        .leftJoin(users, eq(tasks.assignedTo, users.id))
-        .where(eq(tasks.id, taskId));
+        .limit(limit)
+        .offset(offset)
+        .orderBy(desc(tasks.createdAt));
 
-      return result[0] || null;
+      if (whereClause) {
+        query = query.where(whereClause);
+      }
+
+      console.log("📝 Executing tasks query...");
+      const result = await query;
+
+      console.log("✅ TasksRepo findMany - Found:", result.length);
+      return result;
     } catch (error) {
-      throw new Error(`Failed to find task with details: ${error.message}`);
+      console.error("❌ TasksRepo findMany error:", error);
+      throw error;
     }
   }
 
-  async countByStatus(workspaceId = null) {
+  // Find task by ID
+  async findById(id) {
     try {
-      let query = db
-        .select({
-          status: tasks.status,
-          count: count(),
-        })
+      console.log("🔍 TasksRepo findById - ID:", id);
+
+      const result = await this.db
+        .select()
         .from(tasks)
-        .groupBy(tasks.status);
+        .where(eq(tasks.id, id))
+        .limit(1);
 
-      if (workspaceId) {
-        query = query.where(eq(tasks.workspaceId, workspaceId));
-      }
-
-      return await query;
+      console.log(
+        "✅ TasksRepo findById - Found:",
+        result.length > 0 ? "Yes" : "No"
+      );
+      return result.length > 0 ? result[0] : null;
     } catch (error) {
-      throw new Error(`Failed to count tasks by status: ${error.message}`);
+      console.error("❌ TasksRepo findById error:", error);
+      throw error;
+    }
+  }
+
+  // Create task
+  async create(data) {
+    try {
+      console.log("📝 TasksRepo create - Data:", data);
+
+      const result = await this.db.insert(tasks).values(data).returning();
+
+      console.log("✅ TasksRepo create - Created:", result[0]?.id);
+      return result[0];
+    } catch (error) {
+      console.error("❌ TasksRepo create error:", error);
+      throw error;
+    }
+  }
+
+  // Update task
+  async update(id, data) {
+    try {
+      console.log("🔄 TasksRepo update - ID:", id, "Data:", data);
+
+      const result = await this.db
+        .update(tasks)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(tasks.id, id))
+        .returning();
+
+      console.log("✅ TasksRepo update - Updated:", result[0]?.id);
+      return result[0];
+    } catch (error) {
+      console.error("❌ TasksRepo update error:", error);
+      throw error;
+    }
+  }
+
+  // Delete task
+  async delete(id) {
+    try {
+      console.log("🗑️ TasksRepo delete - ID:", id);
+
+      const result = await this.db
+        .delete(tasks)
+        .where(eq(tasks.id, id))
+        .returning();
+
+      console.log("✅ TasksRepo delete - Deleted:", result[0]?.id);
+      return result[0];
+    } catch (error) {
+      console.error("❌ TasksRepo delete error:", error);
+      throw error;
+    }
+  }
+
+  // Get tasks by workspace ID
+  async findByWorkspaceId(workspaceId) {
+    try {
+      console.log("🔍 TasksRepo findByWorkspaceId - WorkspaceId:", workspaceId);
+
+      const result = await this.db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.workspaceId, workspaceId))
+        .orderBy(desc(tasks.createdAt));
+
+      console.log("✅ TasksRepo findByWorkspaceId - Found:", result.length);
+      return result;
+    } catch (error) {
+      console.error("❌ TasksRepo findByWorkspaceId error:", error);
+      throw error;
+    }
+  }
+
+  // Get tasks assigned to user
+  async findByAssignedTo(userId) {
+    try {
+      console.log("🔍 TasksRepo findByAssignedTo - UserId:", userId);
+
+      const result = await this.db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.assignedTo, userId))
+        .orderBy(desc(tasks.createdAt));
+
+      console.log("✅ TasksRepo findByAssignedTo - Found:", result.length);
+      return result;
+    } catch (error) {
+      console.error("❌ TasksRepo findByAssignedTo error:", error);
+      throw error;
     }
   }
 }

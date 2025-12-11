@@ -1,96 +1,172 @@
 import { BaseRepository } from "../../common/repository/base.repository.js";
-import { logs, users, workspaces, tasks } from "../../../drizzle/schema.js";
-import { eq, desc, and } from "drizzle-orm";
+import { logs, users, workspaces } from "../../../drizzle/schema.js";
+import { eq, like, or, and, desc } from "drizzle-orm";
 
 export class LogsRepository extends BaseRepository {
   constructor() {
-    super(logs, "log");
+    super(logs);
+
+    // Debug: Check if logs schema is properly imported
+    console.log("🔍 LogsRepo constructor - logs schema:", !!logs);
+    console.log(
+      "🔍 LogsRepo constructor - logs fields:",
+      logs ? Object.keys(logs) : "undefined"
+    );
   }
 
-  async findAll(filters = {}) {
+  // Get all logs with pagination and search
+  async findMany(options = {}) {
     try {
+      const { page = 1, limit = 10, workspaceId, action } = options;
+
+      console.log("🔍 LogsRepo findMany - Options:", options);
+
+      // Check if logs table is defined
+      if (!logs) {
+        console.error("❌ Logs table schema is undefined!");
+        throw new Error("Logs table schema is not properly imported");
+      }
+
+      const offset = (page - 1) * limit;
+
+      // Build where conditions
+      let whereConditions = [];
+
+      if (workspaceId) {
+        whereConditions.push(eq(logs.workspaceId, workspaceId));
+      }
+
+      if (action) {
+        whereConditions.push(eq(logs.action, action));
+      }
+
+      const whereClause =
+        whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+      // Simple query first without joins to test
       let query = this.db
-        .select({
-          id: logs.id,
-          workspaceId: logs.workspaceId,
-          workspaceName: workspaces.name,
-          taskId: logs.taskId,
-          taskTitle: tasks.title,
-          userId: logs.userId,
-          userName: users.name,
-          action: logs.action,
-          createdAt: logs.createdAt,
-        })
+        .select()
         .from(logs)
-        .innerJoin(users, eq(logs.userId, users.id))
-        .innerJoin(workspaces, eq(logs.workspaceId, workspaces.id))
-        .leftJoin(tasks, eq(logs.taskId, tasks.id))
+        .limit(limit)
+        .offset(offset)
         .orderBy(desc(logs.createdAt));
 
-      // Apply filters
-      const conditions = [];
-
-      if (filters.workspaceId) {
-        conditions.push(eq(logs.workspaceId, filters.workspaceId));
+      if (whereClause) {
+        query = query.where(whereClause);
       }
 
-      if (filters.userId) {
-        conditions.push(eq(logs.userId, filters.userId));
-      }
+      console.log("📝 Executing logs query...");
+      const result = await query;
 
-      if (filters.taskId) {
-        conditions.push(eq(logs.taskId, filters.taskId));
-      }
-
-      if (filters.action) {
-        conditions.push(eq(logs.action, filters.action));
-      }
-
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions));
-      }
-
-      return await query;
-    } catch (error) {
-      throw new Error(`Failed to find logs: ${error.message}`);
-    }
-  }
-
-  async findByWorkspaceId(workspaceId) {
-    try {
-      const result = await this.db
-        .select({
-          id: logs.id,
-          workspaceId: logs.workspaceId,
-          taskId: logs.taskId,
-          taskTitle: tasks.title,
-          userId: logs.userId,
-          userName: users.name,
-          action: logs.action,
-          createdAt: logs.createdAt,
-        })
-        .from(logs)
-        .innerJoin(users, eq(logs.userId, users.id))
-        .leftJoin(tasks, eq(logs.taskId, tasks.id))
-        .where(eq(logs.workspaceId, workspaceId))
-        .orderBy(desc(logs.createdAt));
-
+      console.log("✅ LogsRepo findMany - Found:", result.length);
       return result;
     } catch (error) {
-      throw new Error(`Failed to find logs by workspace ID: ${error.message}`);
+      console.error("❌ LogsRepo findMany error:", error);
+      throw error;
     }
   }
 
-  async findByUserId(userId) {
+  // Find log by ID
+  async findById(id) {
     try {
+      console.log("🔍 LogsRepo findById - ID:", id);
+
+      // Check if logs table is defined
+      if (!logs) {
+        console.error("❌ Logs table schema is undefined!");
+        throw new Error("Logs table schema is not properly imported");
+      }
+
+      const result = await this.db
+        .select()
+        .from(logs)
+        .where(eq(logs.id, id))
+        .limit(1);
+
+      console.log(
+        "✅ LogsRepo findById - Found:",
+        result.length > 0 ? "Yes" : "No"
+      );
+      return result.length > 0 ? result[0] : null;
+    } catch (error) {
+      console.error("❌ LogsRepo findById error:", error);
+      throw error;
+    }
+  }
+
+  // Create log
+  async create(data) {
+    try {
+      console.log("📝 LogsRepo create - Data:", data);
+
+      if (!logs) {
+        console.error("❌ Logs table schema is undefined!");
+        throw new Error("Logs table schema is not properly imported");
+      }
+
+      const result = await this.db.insert(logs).values(data).returning();
+
+      console.log("✅ LogsRepo create - Created:", result[0]?.id);
+      return result[0];
+    } catch (error) {
+      console.error("❌ LogsRepo create error:", error);
+      throw error;
+    }
+  }
+
+  // Get logs by workspace ID
+  async findByWorkspaceId(workspaceId, options = {}) {
+    try {
+      const { page = 1, limit = 10 } = options;
+      const offset = (page - 1) * limit;
+
+      console.log("🔍 LogsRepo findByWorkspaceId - WorkspaceId:", workspaceId);
+
+      if (!logs) {
+        throw new Error("Logs table schema is not properly imported");
+      }
+
+      const result = await this.db
+        .select()
+        .from(logs)
+        .where(eq(logs.workspaceId, workspaceId))
+        .limit(limit)
+        .offset(offset)
+        .orderBy(desc(logs.createdAt));
+
+      console.log("✅ LogsRepo findByWorkspaceId - Found:", result.length);
+      return result;
+    } catch (error) {
+      console.error("❌ LogsRepo findByWorkspaceId error:", error);
+      throw error;
+    }
+  }
+
+  // Get logs by user ID
+  async findByUserId(userId, options = {}) {
+    try {
+      const { page = 1, limit = 10 } = options;
+      const offset = (page - 1) * limit;
+
+      console.log("🔍 LogsRepo findByUserId - UserId:", userId);
+
+      if (!logs) {
+        throw new Error("Logs table schema is not properly imported");
+      }
+
       const result = await this.db
         .select()
         .from(logs)
         .where(eq(logs.userId, userId))
+        .limit(limit)
+        .offset(offset)
         .orderBy(desc(logs.createdAt));
+
+      console.log("✅ LogsRepo findByUserId - Found:", result.length);
       return result;
     } catch (error) {
-      throw new Error(`Failed to find logs by user ID: ${error.message}`);
+      console.error("❌ LogsRepo findByUserId error:", error);
+      throw error;
     }
   }
 }

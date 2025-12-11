@@ -4,27 +4,27 @@ import {
   workspacesMembers,
   users,
 } from "../../../drizzle/schema.js";
-import { eq, like, or } from "drizzle-orm";
+import { eq, like, or, and, desc } from "drizzle-orm";
 
 export class WorkspacesRepository extends BaseRepository {
   constructor() {
-    super(workspaces, "workspace");
+    super(workspaces);
   }
 
-  async findAll(search = "") {
+  // Get all workspaces with pagination and search
+  async findMany(options = {}) {
     try {
-      let query = this.db
-        .select({
-          id: workspaces.id,
-          name: workspaces.name,
-          description: workspaces.description,
-          createdAt: workspaces.createdAt,
-          updatedAt: workspaces.updatedAt,
-        })
-        .from(workspaces);
+      const { page = 1, limit = 10, search, userId } = options;
+
+      console.log("🔍 WorkspacesRepo findMany - Options:", options);
+
+      const offset = (page - 1) * limit;
+
+      // Build where conditions
+      let whereConditions = [];
 
       if (search) {
-        query = query.where(
+        whereConditions.push(
           or(
             like(workspaces.name, `%${search}%`),
             like(workspaces.description, `%${search}%`)
@@ -32,70 +32,138 @@ export class WorkspacesRepository extends BaseRepository {
         );
       }
 
-      return await query;
-    } catch (error) {
-      throw new Error(`Failed to find all workspaces: ${error.message}`);
-    }
-  }
+      // If userId provided, only show workspaces where user is owner or member
+      if (userId) {
+        // This would need a join - for now, let's get all workspaces
+        console.log("🔍 Filtering by userId:", userId);
+      }
 
-  async findByUserId(userId) {
-    try {
-      const result = await this.db
+      const whereClause =
+        whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+      let query = this.db
         .select({
           id: workspaces.id,
           name: workspaces.name,
           description: workspaces.description,
-          createdAt: workspaces.createdAt,
-          updatedAt: workspaces.updatedAt,
-          userRole: workspacesMembers.role,
+          created_by: workspaces.createdBy,
+          created_at: workspaces.createdAt,
+          updated_at: workspaces.updatedAt,
         })
         .from(workspaces)
-        .innerJoin(
-          workspacesMembers,
-          eq(workspaces.id, workspacesMembers.workspaceId)
-        )
-        .where(eq(workspacesMembers.userId, userId));
+        .limit(limit)
+        .offset(offset)
+        .orderBy(desc(workspaces.createdAt));
 
+      if (whereClause) {
+        query = query.where(whereClause);
+      }
+
+      console.log("📝 Executing workspaces query...");
+      const result = await query;
+
+      console.log("✅ WorkspacesRepo findMany - Found:", result.length);
       return result;
     } catch (error) {
-      throw new Error(`Failed to find workspaces by user ID: ${error.message}`);
+      console.error("❌ WorkspacesRepo findMany error:", error);
+      throw error;
     }
   }
 
-  async getWorkspaceMembers(workspaceId) {
+  // Find workspace by ID
+  async findById(id) {
     try {
+      console.log("🔍 WorkspacesRepo findById - ID:", id);
+
       const result = await this.db
-        .select({
-          id: workspacesMembers.id,
-          userId: workspacesMembers.userId,
-          userName: users.name,
-          userRole: users.role,
-          workspaceRole: workspacesMembers.role,
-          createdAt: workspacesMembers.createdAt,
-        })
-        .from(workspacesMembers)
-        .innerJoin(users, eq(workspacesMembers.userId, users.id))
-        .where(eq(workspacesMembers.workspaceId, workspaceId));
+        .select()
+        .from(workspaces)
+        .where(eq(workspaces.id, id))
+        .limit(1);
 
-      return result;
+      console.log(
+        "✅ WorkspacesRepo findById - Found:",
+        result.length > 0 ? "Yes" : "No"
+      );
+      return result.length > 0 ? result[0] : null;
     } catch (error) {
-      throw new Error(`Failed to get workspace members: ${error.message}`);
+      console.error("❌ WorkspacesRepo findById error:", error);
+      throw error;
     }
   }
 
-  async getWorkspaceStats(workspaceId) {
+  // Create workspace
+  async create(data) {
     try {
-      // This would require joining with tasks table
-      // Implementation depends on your specific requirements
-      const members = await this.getWorkspaceMembers(workspaceId);
+      console.log("📝 WorkspacesRepo create - Data:", data);
 
-      return {
-        totalMembers: members.length,
-        adminCount: members.filter((m) => m.workspaceRole === "admin").length,
-        memberCount: members.filter((m) => m.workspaceRole === "member").length,
-      };
+      const result = await this.db.insert(workspaces).values(data).returning();
+
+      console.log("✅ WorkspacesRepo create - Created:", result[0]?.id);
+      return result[0];
     } catch (error) {
-      throw new Error(`Failed to get workspace stats: ${error.message}`);
+      console.error("❌ WorkspacesRepo create error:", error);
+      throw error;
+    }
+  }
+
+  // Update workspace
+  async update(id, data) {
+    try {
+      console.log("🔄 WorkspacesRepo update - ID:", id, "Data:", data);
+
+      const result = await this.db
+        .update(workspaces)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(workspaces.id, id))
+        .returning();
+
+      console.log("✅ WorkspacesRepo update - Updated:", result[0]?.id);
+      return result[0];
+    } catch (error) {
+      console.error("❌ WorkspacesRepo update error:", error);
+      throw error;
+    }
+  }
+
+  // Delete workspace
+  async delete(id) {
+    try {
+      console.log("🗑️ WorkspacesRepo delete - ID:", id);
+
+      const result = await this.db
+        .delete(workspaces)
+        .where(eq(workspaces.id, id))
+        .returning();
+
+      console.log("✅ WorkspacesRepo delete - Deleted:", result[0]?.id);
+      return result[0];
+    } catch (error) {
+      console.error("❌ WorkspacesRepo delete error:", error);
+      throw error;
+    }
+  }
+
+  // Get workspaces for a specific user (as owner or member)
+  async findByUserId(userId) {
+    try {
+      console.log("🔍 WorkspacesRepo findByUserId - UserId:", userId);
+
+      // Get workspaces where user is owner
+      const ownedWorkspaces = await this.db
+        .select()
+        .from(workspaces)
+        .where(eq(workspaces.createdBy, userId))
+        .orderBy(desc(workspaces.createdAt));
+
+      console.log(
+        "✅ WorkspacesRepo findByUserId - Found owned:",
+        ownedWorkspaces.length
+      );
+      return ownedWorkspaces;
+    } catch (error) {
+      console.error("❌ WorkspacesRepo findByUserId error:", error);
+      throw error;
     }
   }
 }

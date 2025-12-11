@@ -1,5 +1,6 @@
 import { BaseController } from "../../common/controller/base.controller.js";
 import { CommentsService } from "./comments.service.js";
+import { ResponseHelper } from "../../common/utils/response.helper.js";
 
 class CommentsController extends BaseController {
   constructor() {
@@ -7,132 +8,126 @@ class CommentsController extends BaseController {
     this.commentsService = new CommentsService();
   }
 
-  getTaskComments = async (req, res) => {
+  // GET /api/comments - List all comments
+  getComments = async (req, res, next) => {
     try {
-      const { taskId } = req.params;
-      const { page = 1, limit = 10 } = req.query;
+      const { page = 1, limit = 10, taskId } = req.query;
 
-      const result = await this.commentsService.getTaskComments(taskId, {
+      const comments = await this.commentsService.getAllComments({
         page: parseInt(page),
         limit: parseInt(limit),
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
+        taskId: taskId ? parseInt(taskId) : undefined,
       });
 
-      return this.sendSuccessResponse(
+      return ResponseHelper.success(
         res,
-        "Task comments retrieved successfully",
-        result.data,
-        result.meta
+        comments,
+        "Comments retrieved successfully"
       );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  getCommentById = async (req, res) => {
+  // GET /api/comments/:id - Get comment by ID
+  getCommentById = async (req, res, next) => {
     try {
       const { id } = req.params;
+      const comment = await this.commentsService.getCommentById(id);
 
-      const comment = await this.commentsService.getCommentById(id, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
-
-      return this.sendSuccessResponse(
+      return ResponseHelper.success(
         res,
-        "Comment retrieved successfully",
-        comment
-      );
-    } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
-    }
-  };
-
-  createComment = async (req, res) => {
-    try {
-      const { taskId } = req.params;
-      const commentData = { ...req.body, taskId: parseInt(taskId) };
-
-      const comment = await this.commentsService.createComment(commentData, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
-
-      return this.sendSuccessResponse(
-        res,
-        "Comment created successfully",
         comment,
-        null,
-        201
+        "Comment retrieved successfully"
       );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  updateComment = async (req, res) => {
+  // POST /api/comments - Create comment
+  createComment = async (req, res, next) => {
+    try {
+      const commentData = req.body;
+      const userId = req.user.userId;
+
+      const comment = await this.commentsService.createComment(
+        commentData,
+        userId
+      );
+
+      return ResponseHelper.created(
+        res,
+        comment,
+        "Comment created successfully"
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // PUT /api/comments/:id - Update comment
+  updateComment = async (req, res, next) => {
     try {
       const { id } = req.params;
       const updateData = req.body;
+      const userId = req.user.userId;
 
-      const comment = await this.commentsService.updateComment(id, updateData, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
+      const comment = await this.commentsService.updateComment(
+        id,
+        updateData,
+        userId
+      );
 
-      return this.sendSuccessResponse(
+      return ResponseHelper.success(
         res,
-        "Comment updated successfully",
-        comment
+        comment,
+        "Comment updated successfully"
       );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  deleteComment = async (req, res) => {
+  // DELETE /api/comments/:id - Delete comment
+  deleteComment = async (req, res, next) => {
     try {
       const { id } = req.params;
+      const userId = req.user.userId;
 
-      await this.commentsService.deleteComment(id, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
+      await this.commentsService.deleteComment(id, userId);
 
-      return this.sendSuccessResponse(res, "Comment deleted successfully");
+      return ResponseHelper.success(res, null, "Comment deleted successfully");
     } catch (error) {
-      return this.sendErrorResponse(
+      next(error);
+    }
+  };
+
+  // GET /api/comments/task/:taskId - Get comments by task
+  getCommentsByTask = async (req, res, next) => {
+    try {
+      const { taskId } = req.params;
+
+      const comments = await this.commentsService.getCommentsByTask(taskId);
+
+      return ResponseHelper.success(
         res,
-        error.message,
-        error.statusCode || 500
+        comments,
+        "Task comments retrieved successfully"
       );
+    } catch (error) {
+      next(error);
     }
   };
 }
 
-const commentsController = new CommentsController();
+export const commentsController = new CommentsController();
+export { CommentsController };
 
-export const {
-  getTaskComments,
-  getCommentById,
-  createComment,
-  updateComment,
-  deleteComment,
-} = commentsController;
+// Export individual methods untuk routes
+export const getComments = commentsController.getComments;
+export const getCommentById = commentsController.getCommentById;
+export const createComment = commentsController.createComment;
+export const updateComment = commentsController.updateComment;
+export const deleteComment = commentsController.deleteComment;
+export const getCommentsByTask = commentsController.getCommentsByTask;

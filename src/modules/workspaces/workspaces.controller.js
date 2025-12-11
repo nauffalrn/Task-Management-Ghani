@@ -1,5 +1,6 @@
 import { BaseController } from "../../common/controller/base.controller.js";
 import { WorkspacesService } from "./workspaces.service.js";
+import { ResponseHelper } from "../../common/utils/response.helper.js";
 
 class WorkspacesController extends BaseController {
   constructor() {
@@ -7,162 +8,135 @@ class WorkspacesController extends BaseController {
     this.workspacesService = new WorkspacesService();
   }
 
-  getAllWorkspaces = async (req, res) => {
+  // GET /api/workspaces - List all workspaces
+  getWorkspaces = async (req, res, next) => {
     try {
       const { page = 1, limit = 10, search } = req.query;
+      const userId = req.user.userId; // For filtering user's workspaces if needed
 
-      const result = await this.workspacesService.getAllWorkspaces({
+      const workspaces = await this.workspacesService.getAllWorkspaces({
         page: parseInt(page),
         limit: parseInt(limit),
         search,
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
+        userId:
+          req.user.role === "owner" || req.user.role === "manager"
+            ? undefined
+            : userId,
       });
 
-      return this.sendSuccessResponse(
+      return ResponseHelper.success(
         res,
-        "Workspaces retrieved successfully",
-        result.data,
-        result.meta
+        workspaces,
+        "Workspaces retrieved successfully"
       );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  getWorkspaceById = async (req, res) => {
+  // GET /api/workspaces/:id - Get workspace by ID
+  getWorkspaceById = async (req, res, next) => {
     try {
       const { id } = req.params;
+      const workspace = await this.workspacesService.getWorkspaceById(id);
 
-      const workspace = await this.workspacesService.getWorkspaceById(id, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
-
-      return this.sendSuccessResponse(
+      return ResponseHelper.success(
         res,
-        "Workspace retrieved successfully",
-        workspace
+        workspace,
+        "Workspace retrieved successfully"
       );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  createWorkspace = async (req, res) => {
+  // POST /api/workspaces - Create workspace
+  createWorkspace = async (req, res, next) => {
     try {
       const workspaceData = req.body;
+      const userId = req.user.userId;
 
       const workspace = await this.workspacesService.createWorkspace(
         workspaceData,
-        {
-          requesterId: req.user.id,
-          requesterRole: req.user.role,
-        }
+        userId
       );
 
-      return this.sendSuccessResponse(
+      return ResponseHelper.created(
         res,
-        "Workspace created successfully",
         workspace,
-        null,
-        201
+        "Workspace created successfully"
       );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  updateWorkspace = async (req, res) => {
+  // PUT /api/workspaces/:id - Update workspace
+  updateWorkspace = async (req, res, next) => {
     try {
       const { id } = req.params;
       const updateData = req.body;
+      const userId = req.user.userId;
 
       const workspace = await this.workspacesService.updateWorkspace(
         id,
         updateData,
-        {
-          requesterId: req.user.id,
-          requesterRole: req.user.role,
-        }
+        userId
       );
 
-      return this.sendSuccessResponse(
+      return ResponseHelper.success(
         res,
-        "Workspace updated successfully",
-        workspace
+        workspace,
+        "Workspace updated successfully"
       );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 
-  deleteWorkspace = async (req, res) => {
+  // DELETE /api/workspaces/:id - Delete workspace
+  deleteWorkspace = async (req, res, next) => {
     try {
       const { id } = req.params;
+      const userId = req.user.userId;
 
-      await this.workspacesService.deleteWorkspace(id, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
+      await this.workspacesService.deleteWorkspace(id, userId);
 
-      return this.sendSuccessResponse(res, "Workspace deleted successfully");
-    } catch (error) {
-      return this.sendErrorResponse(
+      return ResponseHelper.success(
         res,
-        error.message,
-        error.statusCode || 500
+        null,
+        "Workspace deleted successfully"
       );
+    } catch (error) {
+      next(error);
     }
   };
 
-  getWorkspaceStats = async (req, res) => {
+  // GET /api/workspaces/my - Get current user's workspaces
+  getMyWorkspaces = async (req, res, next) => {
     try {
-      const { id } = req.params;
+      const userId = req.user.userId;
 
-      const stats = await this.workspacesService.getWorkspaceStats(id, {
-        requesterId: req.user.id,
-        requesterRole: req.user.role,
-      });
+      const workspaces = await this.workspacesService.getUserWorkspaces(userId);
 
-      return this.sendSuccessResponse(
+      return ResponseHelper.success(
         res,
-        "Workspace statistics retrieved successfully",
-        stats
+        workspaces,
+        "User workspaces retrieved successfully"
       );
     } catch (error) {
-      return this.sendErrorResponse(
-        res,
-        error.message,
-        error.statusCode || 500
-      );
+      next(error);
     }
   };
 }
 
-const workspacesController = new WorkspacesController();
+export const workspacesController = new WorkspacesController();
+export { WorkspacesController };
 
-export const {
-  getAllWorkspaces,
-  getWorkspaceById,
-  createWorkspace,
-  updateWorkspace,
-  deleteWorkspace,
-  getWorkspaceStats,
-} = workspacesController;
+// Export individual methods untuk routes
+export const getWorkspaces = workspacesController.getWorkspaces;
+export const getWorkspaceById = workspacesController.getWorkspaceById;
+export const createWorkspace = workspacesController.createWorkspace;
+export const updateWorkspace = workspacesController.updateWorkspace;
+export const deleteWorkspace = workspacesController.deleteWorkspace;
+export const getMyWorkspaces = workspacesController.getMyWorkspaces;

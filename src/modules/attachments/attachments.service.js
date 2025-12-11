@@ -1,132 +1,202 @@
 import { BaseService } from "../../common/service/base.service.js";
 import { AttachmentsRepository } from "./attachments.repo.js";
-import { HTTP_STATUS, PAGINATION } from "../../common/constants/app.js";
-import { ilike } from "drizzle-orm";
+import { TasksRepository } from "../tasks/tasks.repo.js";
+import { AppError } from "../../common/utils/appError.js";
 import path from "path";
 import fs from "fs";
 
 export class AttachmentsService extends BaseService {
   constructor() {
-    const attachmentsRepo = new AttachmentsRepository();
-    super(attachmentsRepo, "Attachment");
+    super();
+    this.attachmentsRepository = new AttachmentsRepository();
+    this.tasksRepository = new TasksRepository();
   }
 
-  async uploadFile(file, taskId, userId) {
+  // Upload attachment
+  async uploadAttachment(attachmentData) {
     try {
-      if (!file) {
-        const error = new Error("No file provided");
-        error.statusCode = HTTP_STATUS.BAD_REQUEST;
-        throw error;
-      }
+      const { taskId, file, userId } = attachmentData;
 
-      if (!taskId || !userId) {
-        const error = new Error("Task ID and User ID are required");
-        error.statusCode = HTTP_STATUS.BAD_REQUEST;
-        throw error;
-      }
-
-      // Create attachment record
-      const attachment = await this.repository.create({
+      console.log("📝 AttachmentsService uploadAttachment - Data:", {
         taskId,
+        filename: file.filename,
         userId,
-        fileName: file.filename,
+      });
+
+      // Validate task exists
+      const task = await this.tasksRepository.findById(taskId);
+      if (!task) {
+        throw AppError.notFound("Task not found");
+      }
+
+      // PERBAIKAN: Gunakan field yang benar sesuai database
+      const newAttachment = await this.attachmentsRepository.create({
+        taskId,
+        userId, // UBAH: dari uploadedBy ke userId
+        filename: file.filename,
         originalName: file.originalname,
-        fileType: file.mimetype,
+        filetype: file.mimetype, // UBAH: dari mimeType ke filetype
         fileSize: file.size,
         filePath: file.path,
       });
 
-      return {
-        ...attachment,
-        downloadUrl: this.getDownloadUrl(file.path),
-        previewUrl: this.getPreviewUrl(attachment),
-        formattedSize: this.formatFileSize(file.size),
-        isImage: file.mimetype.startsWith("image/"),
-      };
+      console.log(
+        "✅ AttachmentsService uploadAttachment - Created:",
+        newAttachment.id
+      );
+      return newAttachment;
     } catch (error) {
-      // Clean up file if database save fails
-      if (file && file.path && fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
-      }
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to upload file: ${error.message}`);
+      console.error("❌ AttachmentsService uploadAttachment error:", error);
+      throw error;
     }
   }
 
-  async getTaskAttachments(taskId) {
+  // Delete attachment
+  async deleteAttachment(id, userId) {
     try {
-      if (!taskId) {
-        const error = new Error("Task ID is required");
-        error.statusCode = HTTP_STATUS.BAD_REQUEST;
-        throw error;
+      console.log("🗑️ AttachmentsService deleteAttachment - ID:", id);
+
+      // Check if attachment exists
+      const existingAttachment = await this.attachmentsRepository.findById(id);
+      if (!existingAttachment) {
+        throw AppError.notFound("Attachment not found");
       }
 
-      const attachments = await this.repository.findByTaskId(taskId);
-
-      const attachmentsWithUrls = attachments.map((attachment) => ({
-        ...attachment,
-        downloadUrl: this.getDownloadUrl(attachment.filePath),
-        previewUrl: this.getPreviewUrl(attachment),
-        isImage: attachment.fileType.startsWith("image/"),
-        formattedSize: this.formatFileSize(attachment.fileSize),
-      }));
-
-      return attachmentsWithUrls;
-    } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to get task attachments: ${error.message}`);
-    }
-  }
-
-  async deleteAttachment(attachmentId, userId) {
-    try {
-      const attachment = await this.repository.findById(attachmentId);
-
-      if (!attachment) {
-        const error = new Error("Attachment not found");
-        error.statusCode = HTTP_STATUS.NOT_FOUND;
-        throw error;
-      }
-
-      // Check if user owns the attachment or has permission
-      if (attachment.userId !== userId) {
-        const error = new Error("Access denied");
-        error.statusCode = HTTP_STATUS.FORBIDDEN;
-        throw error;
+      // PERBAIKAN: Gunakan field yang benar
+      if (existingAttachment.userId !== userId) {
+        // UBAH: dari uploadedBy
+        throw AppError.forbidden("You can only delete your own attachments");
       }
 
       // Delete file from filesystem
-      if (fs.existsSync(attachment.filePath)) {
-        fs.unlinkSync(attachment.filePath);
+      try {
+        if (fs.existsSync(existingAttachment.filePath)) {
+          fs.unlinkSync(existingAttachment.filePath);
+        }
+      } catch (fileError) {
+        console.warn(
+          "⚠️ Could not delete file from filesystem:",
+          fileError.message
+        );
       }
 
-      // Delete from database
-      await this.repository.delete(attachmentId);
+      await this.attachmentsRepository.delete(id);
 
+      console.log(
+        "✅ AttachmentsService deleteAttachment - Deleted attachment:",
+        existingAttachment.filename
+      );
+      return true;
+    } catch (error) {
+      console.error("❌ AttachmentsService deleteAttachment error:", error);
+      throw error;
+    }
+  }
+
+  // Get all attachments
+  async getAllAttachments(options = {}) {
+    try {
+      const { page = 1, limit = 10, taskId } = options;
+
+      console.log(
+        "🔍 AttachmentsService getAllAttachments - Options:",
+        options
+      );
+
+      const attachments = await this.attachmentsRepository.findMany({
+        page,
+        limit,
+        taskId,
+      });
+
+      console.log(
+        "✅ AttachmentsService getAllAttachments - Found:",
+        attachments.length
+      );
+      return attachments;
+    } catch (error) {
+      console.error("❌ AttachmentsService getAllAttachments error:", error);
+      throw error;
+    }
+  }
+
+  // Get attachment by ID
+  async getAttachmentById(id) {
+    try {
+      console.log("🔍 AttachmentsService getAttachmentById - ID:", id);
+
+      const attachment = await this.attachmentsRepository.findById(id);
+      if (!attachment) {
+        throw AppError.notFound("Attachment not found");
+      }
+
+      console.log(
+        "✅ AttachmentsService getAttachmentById - Found:",
+        attachment.filename
+      );
       return attachment;
     } catch (error) {
-      if (error.statusCode) throw error;
-      throw new Error(`Failed to delete attachment: ${error.message}`);
+      console.error("❌ AttachmentsService getAttachmentById error:", error);
+      throw error;
     }
   }
 
-  // Helper methods
-  getDownloadUrl(filePath) {
-    return filePath.replace("public", "");
-  }
+  // Get attachment for download
+  async getAttachmentForDownload(id) {
+    try {
+      console.log("📥 AttachmentsService getAttachmentForDownload - ID:", id);
 
-  getPreviewUrl(attachment) {
-    if (attachment.fileType.startsWith("image/")) {
-      return this.getDownloadUrl(attachment.filePath);
+      const attachment = await this.attachmentsRepository.findById(id);
+      if (!attachment) {
+        throw AppError.notFound("Attachment not found");
+      }
+
+      // Check if file exists
+      if (!fs.existsSync(attachment.filePath)) {
+        throw AppError.notFound("File not found on server");
+      }
+
+      console.log(
+        "✅ AttachmentsService getAttachmentForDownload - File ready:",
+        attachment.filename
+      );
+      return {
+        filePath: attachment.filePath,
+        originalName: attachment.originalName,
+      };
+    } catch (error) {
+      console.error(
+        "❌ AttachmentsService getAttachmentForDownload error:",
+        error
+      );
+      throw error;
     }
-    return null;
   }
 
-  formatFileSize(bytes) {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  // Get attachments by task
+  async getAttachmentsByTask(taskId) {
+    try {
+      console.log(
+        "🔍 AttachmentsService getAttachmentsByTask - TaskId:",
+        taskId
+      );
+
+      // Validate task exists
+      const task = await this.tasksRepository.findById(taskId);
+      if (!task) {
+        throw AppError.notFound("Task not found");
+      }
+
+      const attachments = await this.attachmentsRepository.findByTaskId(taskId);
+
+      console.log(
+        "✅ AttachmentsService getAttachmentsByTask - Found:",
+        attachments.length
+      );
+      return attachments;
+    } catch (error) {
+      console.error("❌ AttachmentsService getAttachmentsByTask error:", error);
+      throw error;
+    }
   }
 }

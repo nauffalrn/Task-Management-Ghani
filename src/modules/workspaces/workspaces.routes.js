@@ -1,32 +1,30 @@
 import { Router } from "express";
-import { authenticateToken } from "../../common/middlewares/auth.js";
+import { authenticate, authorize } from "../../common/middlewares/auth.js";
 import {
-  getAllWorkspaces,
+  getWorkspaces, // UBAH: dari getAllWorkspaces ke getWorkspaces
   getWorkspaceById,
   createWorkspace,
   updateWorkspace,
   deleteWorkspace,
-  getWorkspaceStats,
+  getMyWorkspaces,
 } from "./workspaces.controller.js";
 
 const router = Router();
-
-// All routes require authentication
-router.use(authenticateToken);
 
 /**
  * @swagger
  * tags:
  *   name: Workspaces
- *   description: Workspace management endpoints (project containers)
+ *   description: Workspace management endpoints
  */
 
 /**
  * @swagger
- * /workspaces:
+ * /api/workspaces:
  *   get:
- *     summary: Get all workspaces
  *     tags: [Workspaces]
+ *     summary: Get all workspaces
+ *     description: Retrieve a list of all workspaces
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -34,47 +32,54 @@ router.use(authenticateToken);
  *         name: page
  *         schema:
  *           type: integer
- *           minimum: 1
  *           default: 1
  *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
- *           minimum: 1
- *           maximum: 100
  *           default: 10
- *         description: Number of items per page
+ *         description: Number of workspaces per page
  *       - in: query
  *         name: search
  *         schema:
  *           type: string
- *         description: Search by workspace name
+ *         description: Search term for workspace name or description
  *     responses:
  *       200:
  *         description: Workspaces retrieved successfully
  *         content:
  *           application/json:
  *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/PaginatedResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       type: array
- *                       items:
- *                         $ref: '#/components/schemas/Workspace'
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Workspaces retrieved successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Workspace'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  */
-router.get("/", getAllWorkspaces);
+router.get(
+  "/",
+  authenticate,
+  authorize(["owner", "manager", "head_it", "head_marketing", "head_finance"]),
+  getWorkspaces
+);
 
 /**
  * @swagger
- * /workspaces/{id}:
+ * /api/workspaces/{id}:
  *   get:
- *     summary: Get workspace by ID
  *     tags: [Workspaces]
+ *     summary: Get workspace by ID
+ *     description: Retrieve a specific workspace by ID
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -102,19 +107,18 @@ router.get("/", getAllWorkspaces);
  *                   $ref: '#/components/schemas/Workspace'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.get("/:id", getWorkspaceById);
+router.get("/:id", authenticate, getWorkspaceById);
 
 /**
  * @swagger
- * /workspaces:
+ * /api/workspaces:
  *   post:
- *     summary: Create a new workspace
  *     tags: [Workspaces]
+ *     summary: Create new workspace
+ *     description: Create a new workspace (manager and above only)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -122,7 +126,17 @@ router.get("/:id", getWorkspaceById);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CreateWorkspaceRequest'
+ *             type: object
+ *             required:
+ *               - name
+ *               - description
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: IT Department
+ *               description:
+ *                 type: string
+ *                 example: Workspace for IT department tasks
  *     responses:
  *       201:
  *         description: Workspace created successfully
@@ -143,15 +157,23 @@ router.get("/:id", getWorkspaceById);
  *         $ref: '#/components/responses/ValidationError'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  */
-router.post("/", createWorkspace);
+router.post(
+  "/",
+  authenticate,
+  authorize(["owner", "manager", "head_it", "head_marketing", "head_finance"]),
+  createWorkspace
+);
 
 /**
  * @swagger
- * /workspaces/{id}:
+ * /api/workspaces/{id}:
  *   put:
- *     summary: Update workspace
  *     tags: [Workspaces]
+ *     summary: Update workspace
+ *     description: Update an existing workspace (owner only)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -166,25 +188,17 @@ router.post("/", createWorkspace);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/UpdateWorkspaceRequest'
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: IT Department Updated
+ *               description:
+ *                 type: string
+ *                 example: Updated workspace description
  *     responses:
  *       200:
  *         description: Workspace updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: Workspace updated successfully
- *                 data:
- *                   $ref: '#/components/schemas/Workspace'
- *       400:
- *         $ref: '#/components/responses/ValidationError'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
@@ -192,14 +206,15 @@ router.post("/", createWorkspace);
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.put("/:id", updateWorkspace);
+router.put("/:id", authenticate, updateWorkspace);
 
 /**
  * @swagger
- * /workspaces/{id}:
+ * /api/workspaces/{id}:
  *   delete:
- *     summary: Delete workspace
  *     tags: [Workspaces]
+ *     summary: Delete workspace
+ *     description: Delete a workspace (owner only)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -211,7 +226,7 @@ router.put("/:id", updateWorkspace);
  *         description: Workspace ID
  *     responses:
  *       200:
- *         $ref: '#/components/responses/SuccessResponse'
+ *         description: Workspace deleted successfully
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
@@ -219,26 +234,20 @@ router.put("/:id", updateWorkspace);
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.delete("/:id", deleteWorkspace);
+router.delete("/:id", authenticate, deleteWorkspace);
 
 /**
  * @swagger
- * /workspaces/{id}/stats:
+ * /api/workspaces/my:
  *   get:
- *     summary: Get workspace statistics
  *     tags: [Workspaces]
+ *     summary: Get my workspaces
+ *     description: Get workspaces owned by current user
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: Workspace ID
  *     responses:
  *       200:
- *         description: Workspace statistics retrieved successfully
+ *         description: User workspaces retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -249,16 +258,14 @@ router.delete("/:id", deleteWorkspace);
  *                   example: success
  *                 message:
  *                   type: string
- *                   example: Workspace statistics retrieved successfully
+ *                   example: User workspaces retrieved successfully
  *                 data:
- *                   $ref: '#/components/schemas/WorkspaceStats'
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Workspace'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
- *       404:
- *         $ref: '#/components/responses/NotFoundError'
  */
-router.get("/:id/stats", getWorkspaceStats);
+router.get("/my", authenticate, getMyWorkspaces);
 
 export default router;

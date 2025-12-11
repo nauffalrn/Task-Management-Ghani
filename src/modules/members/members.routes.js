@@ -1,17 +1,15 @@
 import { Router } from "express";
-import { authenticateToken } from "../../common/middlewares/auth.js";
+import { authenticate, authorize } from "../../common/middlewares/auth.js";
 import {
-  getWorkspaceMembers,
+  getMembers,
   getMemberById,
   addMember,
+  updateMember,
   removeMember,
-  updateMemberRole,
+  getMembersByWorkspace,
 } from "./members.controller.js";
 
 const router = Router();
-
-// All routes require authentication
-router.use(authenticateToken);
 
 /**
  * @swagger
@@ -22,10 +20,67 @@ router.use(authenticateToken);
 
 /**
  * @swagger
- * /members/workspace/{workspaceId}:
+ * /api/members:
  *   get:
- *     summary: Get all members of a workspace
  *     tags: [Members]
+ *     summary: Get all members
+ *     description: Retrieve a list of all workspace members
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of members per page
+ *       - in: query
+ *         name: workspaceId
+ *         schema:
+ *           type: integer
+ *         description: Filter by workspace ID
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *           enum: [admin, member]
+ *         description: Filter by member role
+ *     responses:
+ *       200:
+ *         description: Members retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Members retrieved successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Member'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ */
+router.get("/", authenticate, getMembers);
+
+/**
+ * @swagger
+ * /api/members/workspace/{workspaceId}:
+ *   get:
+ *     tags: [Members]
+ *     summary: Get all members of a workspace
+ *     description: Retrieve all members of a specific workspace
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -39,21 +94,19 @@ router.use(authenticateToken);
  *         name: page
  *         schema:
  *           type: integer
- *           minimum: 1
  *           default: 1
  *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
- *           minimum: 1
- *           maximum: 100
  *           default: 10
- *         description: Number of items per page
+ *         description: Number of members per page
  *       - in: query
  *         name: role
  *         schema:
- *           $ref: '#/components/schemas/UserRole'
+ *           type: string
+ *           enum: [admin, member]
  *         description: Filter by member role
  *     responses:
  *       200:
@@ -61,29 +114,57 @@ router.use(authenticateToken);
  *         content:
  *           application/json:
  *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/PaginatedResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       type: array
- *                       items:
- *                         $ref: '#/components/schemas/Member'
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Workspace members retrieved successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       workspace_id:
+ *                         type: integer
+ *                         example: 1
+ *                       user_id:
+ *                         type: integer
+ *                         example: 2
+ *                       role:
+ *                         type: string
+ *                         example: member
+ *                       user_name:
+ *                         type: string
+ *                         example: John Doe
+ *                       user_email:
+ *                         type: string
+ *                         example: john@example.com
+ *                       user_role:
+ *                         type: string
+ *                         example: staff_it
+ *                       created_at:
+ *                         type: string
+ *                         format: date-time
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.get("/workspace/:workspaceId", getWorkspaceMembers);
+router.get("/workspace/:workspaceId", authenticate, getMembersByWorkspace);
 
 /**
  * @swagger
- * /members/{id}:
+ * /api/members/{id}:
  *   get:
- *     summary: Get member details by ID
  *     tags: [Members]
+ *     summary: Get member by ID
+ *     description: Retrieve a specific member by ID
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -95,7 +176,7 @@ router.get("/workspace/:workspaceId", getWorkspaceMembers);
  *         description: Member ID
  *     responses:
  *       200:
- *         description: Member details retrieved successfully
+ *         description: Member retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -111,34 +192,41 @@ router.get("/workspace/:workspaceId", getWorkspaceMembers);
  *                   $ref: '#/components/schemas/Member'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.get("/:id", getMemberById);
+router.get("/:id", authenticate, getMemberById);
 
 /**
  * @swagger
- * /members/workspace/{workspaceId}:
+ * /api/members:
  *   post:
- *     summary: Add a member to workspace
  *     tags: [Members]
+ *     summary: Add member to workspace
+ *     description: Add a new member to a workspace
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: workspaceId
- *         required: true
- *         schema:
- *           type: integer
- *         description: Workspace ID
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/AddMemberRequest'
+ *             type: object
+ *             required:
+ *               - workspaceId
+ *               - userId
+ *             properties:
+ *               workspaceId:
+ *                 type: integer
+ *                 example: 1
+ *               userId:
+ *                 type: integer
+ *                 example: 2
+ *               role:
+ *                 type: string
+ *                 enum: [admin, member]
+ *                 default: member
+ *                 example: member
  *     responses:
  *       201:
  *         description: Member added successfully
@@ -152,65 +240,32 @@ router.get("/:id", getMemberById);
  *                   example: success
  *                 message:
  *                   type: string
- *                   example: Member added to workspace successfully
+ *                   example: Member added successfully
  *                 data:
  *                   $ref: '#/components/schemas/Member'
  *       400:
  *         $ref: '#/components/responses/ValidationError'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  *       409:
- *         description: User is already a member of this workspace
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *         description: User is already a member
  */
-router.post("/workspace/:workspaceId", addMember);
+router.post(
+  "/",
+  authenticate,
+  authorize(["owner", "manager", "head_it", "head_marketing", "head_finance"]),
+  addMember
+);
 
 /**
  * @swagger
- * /members/workspace/{workspaceId}/user/{userId}:
- *   delete:
- *     summary: Remove member from workspace
+ * /api/members/{id}:
+ *   put:
  *     tags: [Members]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: workspaceId
- *         required: true
- *         schema:
- *           type: integer
- *         description: Workspace ID
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: integer
- *         description: User ID to remove
- *     responses:
- *       200:
- *         $ref: '#/components/responses/SuccessResponse'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       403:
- *         $ref: '#/components/responses/ForbiddenError'
- *       404:
- *         $ref: '#/components/responses/NotFoundError'
- */
-router.delete("/workspace/:workspaceId/user/:userId", removeMember);
-
-/**
- * @swagger
- * /members/{id}/role:
- *   patch:
- *     summary: Update member role in workspace
- *     tags: [Members]
+ *     summary: Update member role
+ *     description: Update a member's role in the workspace
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -226,28 +281,40 @@ router.delete("/workspace/:workspaceId/user/:userId", removeMember);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [role]
  *             properties:
  *               role:
- *                 $ref: '#/components/schemas/UserRole'
+ *                 type: string
+ *                 enum: [admin, member]
+ *                 example: admin
  *     responses:
  *       200:
- *         description: Member role updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 message:
- *                   type: string
- *                   example: Member role updated successfully
- *                 data:
- *                   $ref: '#/components/schemas/Member'
- *       400:
- *         $ref: '#/components/responses/ValidationError'
+ *         description: Member updated successfully
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
+ */
+router.put("/:id", authenticate, authorize(["owner", "manager"]), updateMember);
+
+/**
+ * @swagger
+ * /api/members/{id}:
+ *   delete:
+ *     tags: [Members]
+ *     summary: Remove member from workspace
+ *     description: Remove a member from the workspace
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Member ID
+ *     responses:
+ *       200:
+ *         description: Member removed successfully
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
@@ -255,6 +322,11 @@ router.delete("/workspace/:workspaceId/user/:userId", removeMember);
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.patch("/:id/role", updateMemberRole);
+router.delete(
+  "/:id",
+  authenticate,
+  authorize(["owner", "manager"]),
+  removeMember
+);
 
 export default router;
