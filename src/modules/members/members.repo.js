@@ -27,8 +27,9 @@ export class MembersRepository extends BaseRepository {
         whereConditions.push(eq(workspacesMembers.workspaceId, workspaceId));
       }
 
+      // PERBAIKAN: Filter berdasarkan USER ROLE, bukan workspace member role
       if (role) {
-        whereConditions.push(eq(workspacesMembers.role, role));
+        whereConditions.push(eq(users.role, role));
       }
 
       const whereClause =

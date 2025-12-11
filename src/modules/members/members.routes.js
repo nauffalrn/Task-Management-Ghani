@@ -49,7 +49,7 @@ const router = Router();
  *         name: role
  *         schema:
  *           type: string
- *           enum: [admin, member]
+ *           enum: [owner, manager, head_it, head_marketing, head_finance, staff_it, staff_marketing, staff_finance]
  *         description: Filter by member role
  *     responses:
  *       200:
@@ -68,7 +68,32 @@ const router = Router();
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/Member'
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       workspace_id:
+ *                         type: integer
+ *                         example: 1
+ *                       user_id:
+ *                         type: integer
+ *                         example: 2
+ *                       role:
+ *                         type: string
+ *                         example: member
+ *                       created_at:
+ *                         type: string
+ *                         format: date-time
+ *                       user_name:
+ *                         type: string
+ *                         example: John Doe
+ *                       user_email:
+ *                         type: string
+ *                         example: john@example.com
+ *                       user_role:
+ *                         type: string
+ *                         example: staff_it
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  */
@@ -106,7 +131,7 @@ router.get("/", authenticate, getMembers);
  *         name: role
  *         schema:
  *           type: string
- *           enum: [admin, member]
+ *           enum: [owner, manager, head_it, head_marketing, head_finance, staff_it, staff_marketing, staff_finance]
  *         description: Filter by member role
  *     responses:
  *       200:
@@ -189,7 +214,26 @@ router.get("/workspace/:workspaceId", authenticate, getMembersByWorkspace);
  *                   type: string
  *                   example: Member retrieved successfully
  *                 data:
- *                   $ref: '#/components/schemas/Member'
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     workspace_id:
+ *                       type: integer
+ *                       example: 1
+ *                     user_id:
+ *                       type: integer
+ *                       example: 2
+ *                     role:
+ *                       type: string
+ *                       example: member
+ *                     user_name:
+ *                       type: string
+ *                       example: John Doe
+ *                     user_email:
+ *                       type: string
+ *                       example: john@example.com
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       404:
@@ -227,6 +271,7 @@ router.get("/:id", authenticate, getMemberById);
  *                 enum: [admin, member]
  *                 default: member
  *                 example: member
+ *                 description: Role dalam workspace (admin/member), berbeda dengan user role
  *     responses:
  *       201:
  *         description: Member added successfully
@@ -242,7 +287,20 @@ router.get("/:id", authenticate, getMemberById);
  *                   type: string
  *                   example: Member added successfully
  *                 data:
- *                   $ref: '#/components/schemas/Member'
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     workspace_id:
+ *                       type: integer
+ *                       example: 1
+ *                     user_id:
+ *                       type: integer
+ *                       example: 2
+ *                     role:
+ *                       type: string
+ *                       example: member
  *       400:
  *         $ref: '#/components/responses/ValidationError'
  *       401:
@@ -286,6 +344,7 @@ router.post(
  *                 type: string
  *                 enum: [admin, member]
  *                 example: admin
+ *                 description: Role dalam workspace (admin/member)
  *     responses:
  *       200:
  *         description: Member updated successfully
